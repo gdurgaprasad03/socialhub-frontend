@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import api from '@/lib/api';
 
 export type Platform = 'twitter' | 'linkedin' | 'facebook' | 'instagram';
 export type PostStatus = 'pending' | 'posted' | 'failed';
@@ -16,55 +17,61 @@ export interface ScheduledPost {
 interface PostState {
   posts: ScheduledPost[];
   isCreating: boolean;
+  isLoading: boolean;
+  fetchPosts: () => Promise<void>;
   createPost: (post: Omit<ScheduledPost, 'id' | 'createdAt' | 'status'>) => Promise<void>;
-  deletePost: (id: string) => void;
+  deletePost: (id: string) => Promise<void>;
+  updatePost: (id: string, data: Partial<ScheduledPost>) => Promise<void>;
   updatePostStatus: (id: string, status: PostStatus) => void;
 }
 
-const mockPosts: ScheduledPost[] = [
-  {
-    id: '1',
-    content: 'Excited to announce our new product launch! Stay tuned for more details. 🚀',
-    platforms: ['twitter', 'linkedin'],
-    scheduledAt: '2026-03-21T10:00:00Z',
-    status: 'pending',
-    createdAt: '2026-03-19T08:00:00Z',
-  },
-  {
-    id: '2',
-    content: 'Behind the scenes of our latest photoshoot. The team worked incredibly hard to bring this vision to life.',
-    platforms: ['instagram', 'facebook'],
-    scheduledAt: '2026-03-20T14:30:00Z',
-    status: 'posted',
-    media: ['/placeholder.svg'],
-    createdAt: '2026-03-18T12:00:00Z',
-  },
-  {
-    id: '3',
-    content: 'Join us for a live Q&A session this Friday at 3 PM EST. Drop your questions below!',
-    platforms: ['twitter', 'facebook', 'linkedin'],
-    scheduledAt: '2026-03-19T20:00:00Z',
-    status: 'failed',
-    createdAt: '2026-03-17T09:00:00Z',
-  },
-];
-
 export const usePostStore = create<PostState>((set) => ({
-  posts: mockPosts,
+  posts: [],
   isCreating: false,
+  isLoading: false,
+  fetchPosts: async () => {
+    set({ isLoading: true });
+    try {
+      const { data } = await api.get('/posts/');
+      set({ posts: Array.isArray(data) ? data : data.results || [], isLoading: false });
+    } catch {
+      set({ isLoading: false });
+    }
+  },
   createPost: async (post) => {
     set({ isCreating: true });
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    const newPost: ScheduledPost = {
-      ...post,
-      id: Date.now().toString(),
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-    };
-    set((state) => ({ posts: [newPost, ...state.posts], isCreating: false }));
+    try {
+      const { data } = await api.post('/posts/', {
+        content: post.content,
+        platforms: post.platforms,
+        scheduled_at: post.scheduledAt,
+        media: post.media,
+      });
+      const newPost: ScheduledPost = {
+        id: data.id?.toString(),
+        content: data.content,
+        platforms: data.platforms,
+        scheduledAt: data.scheduled_at || data.scheduledAt,
+        status: data.status || 'pending',
+        media: data.media,
+        createdAt: data.created_at || data.createdAt || new Date().toISOString(),
+      };
+      set((state) => ({ posts: [newPost, ...state.posts], isCreating: false }));
+    } catch {
+      set({ isCreating: false });
+      throw new Error('Failed to create post');
+    }
   },
-  deletePost: (id) =>
-    set((state) => ({ posts: state.posts.filter((p) => p.id !== id) })),
+  deletePost: async (id) => {
+    await api.delete(`/posts/${id}/`);
+    set((state) => ({ posts: state.posts.filter((p) => p.id !== id) }));
+  },
+  updatePost: async (id, data) => {
+    const { data: updated } = await api.put(`/posts/${id}/`, data);
+    set((state) => ({
+      posts: state.posts.map((p) => (p.id === id ? { ...p, ...updated } : p)),
+    }));
+  },
   updatePostStatus: (id, status) =>
     set((state) => ({
       posts: state.posts.map((p) => (p.id === id ? { ...p, status } : p)),

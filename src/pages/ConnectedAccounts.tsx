@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useAccountStore } from '@/stores/accountStore';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -13,7 +14,9 @@ const PLATFORM_META: Record<Platform, { label: string; icon: React.ElementType; 
 };
 
 const ConnectedAccounts = () => {
-  const { accounts, toggleConnection, isConnecting } = useAccountStore();
+  const { accounts, toggleConnection, isConnecting, fetchAccounts } = useAccountStore();
+
+  useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
 
   const handleToggle = async (platform: Platform, connected: boolean) => {
     await toggleConnection(platform);

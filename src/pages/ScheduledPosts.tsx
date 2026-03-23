@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { usePostStore, type PostStatus } from '@/stores/postStore';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -19,7 +20,9 @@ const PLATFORM_ICONS: Record<Platform, React.ElementType> = {
 };
 
 const ScheduledPosts = () => {
-  const { posts, deletePost } = usePostStore();
+  const { posts, deletePost, fetchPosts } = usePostStore();
+
+  useEffect(() => { fetchPosts(); }, [fetchPosts]);
 
   const handleDelete = (id: string) => {
     deletePost(id);
