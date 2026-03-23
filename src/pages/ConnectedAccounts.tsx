@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useAccountStore } from '@/stores/accountStore';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
