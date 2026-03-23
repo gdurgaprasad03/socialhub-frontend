@@ -20,7 +20,9 @@ const PLATFORM_ICONS: Record<Platform, React.ElementType> = {
 };
 
 const ScheduledPosts = () => {
-  const { posts, deletePost } = usePostStore();
+  const { posts, deletePost, fetchPosts } = usePostStore();
+
+  useEffect(() => { fetchPosts(); }, [fetchPosts]);
 
   const handleDelete = (id: string) => {
     deletePost(id);
