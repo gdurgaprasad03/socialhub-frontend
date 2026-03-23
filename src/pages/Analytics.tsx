@@ -1,15 +1,24 @@
+import { useEffect, useState } from 'react';
 import { usePostStore } from '@/stores/postStore';
 import { useAccountStore } from '@/stores/accountStore';
+import api from '@/lib/api';
 import { BarChart3, Calendar, CheckCircle2, TrendingUp, Users } from 'lucide-react';
 
 const Analytics = () => {
-  const { posts } = usePostStore();
-  const { accounts } = useAccountStore();
+  const { posts, fetchPosts } = usePostStore();
+  const { accounts, fetchAccounts } = useAccountStore();
+  const [backendStats, setBackendStats] = useState<Record<string, number> | null>(null);
 
-  const totalPosts = posts.length;
-  const postedCount = posts.filter((p) => p.status === 'posted').length;
-  const pendingCount = posts.filter((p) => p.status === 'pending').length;
-  const connectedCount = accounts.filter((a) => a.connected).length;
+  useEffect(() => {
+    fetchPosts();
+    fetchAccounts();
+    api.get('/analytics/').then(({ data }) => setBackendStats(data)).catch(() => {});
+  }, [fetchPosts, fetchAccounts]);
+
+  const totalPosts = backendStats?.total_posts ?? posts.length;
+  const postedCount = backendStats?.published ?? posts.filter((p) => p.status === 'posted').length;
+  const pendingCount = backendStats?.pending ?? posts.filter((p) => p.status === 'pending').length;
+  const connectedCount = backendStats?.connected_accounts ?? accounts.filter((a) => a.connected).length;
 
   const stats = [
     { label: 'Total Posts', value: totalPosts, icon: Calendar, color: 'text-primary' },
@@ -45,7 +54,7 @@ const Analytics = () => {
         <BarChart3 className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
         <p className="font-medium mb-1">Detailed analytics coming soon</p>
         <p className="text-sm text-muted-foreground">
-          Connect your backend API to see engagement metrics, reach, and audience insights.
+          Engagement metrics, reach, and audience insights will appear here.
         </p>
       </div>
     </div>
