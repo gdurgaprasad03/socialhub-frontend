@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePostStore, type PostStatus, type Platform } from '@/stores/postStore';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import {
-  Trash2, Clock, CheckCircle2, XCircle, Twitter,
-  Linkedin, Facebook, Instagram, Calendar, Plus, Loader2
+  Loader2, Trash2, Clock, CheckCircle2, XCircle,
+  Calendar, MessageSquare, Plus, Twitter, Linkedin, Facebook, Instagram
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import PostForm from '@/components/PostForm';
@@ -22,23 +22,27 @@ const PLATFORM_ICONS: Record<Platform, React.ElementType> = {
   instagram: Instagram,
 };
 
-const ScheduledPosts = () => {
+const Posts = () => {
   const [view, setView] = useState<'list' | 'create'>('list');
-  const { scheduledPosts, deleteScheduledPost, fetchScheduledPosts, isLoadingScheduled } = usePostStore();
+  const { posts, fetchPosts, deletePost, isLoading } = usePostStore();
 
-  useEffect(() => { fetchScheduledPosts().catch(() => {}); }, [fetchScheduledPosts]);
+  useEffect(() => {
+    fetchPosts().catch(() => {});
+  }, [fetchPosts]);
 
   const handleDelete = (id: number) => {
-    deleteScheduledPost(id);
-    toast.success('Scheduled post deleted');
+    deletePost(id);
+    toast.success('Post deleted');
   };
+
+  const publishedPosts = posts.filter(p => p.status === 'published' || p.status === 'failed');
 
   if (view === 'create') {
     return (
       <div className="max-w-4xl mx-auto">
         <PostForm
-          mode="schedule"
-          onSuccess={() => { fetchScheduledPosts().catch(() => {}); setView('list'); }}
+          mode="post"
+          onSuccess={() => { fetchPosts().catch(() => {}); setView('list'); }}
           onCancel={() => setView('list')}
         />
       </div>
@@ -47,67 +51,80 @@ const ScheduledPosts = () => {
 
   return (
     <div className="max-w-4xl mx-auto animate-slide-up">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold">Scheduled Posts</h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold">Posts</h2>
         <Button onClick={() => setView('create')} className="gap-2">
           <Plus className="w-4 h-4" />
-          Schedule Post
+          Create Post
         </Button>
       </div>
 
-      {isLoadingScheduled ? (
+      {isLoading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
         </div>
-      ) : scheduledPosts.length === 0 ? (
-        <div className="bg-card rounded-lg border p-12 text-center">
+      ) : publishedPosts.length === 0 ? (
+        <div className="bg-card rounded-lg border p-12 text-center animate-fade-in">
           <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-            <Calendar className="w-8 h-8 text-muted-foreground" />
+            <MessageSquare className="w-8 h-8 text-muted-foreground" />
           </div>
-          <p className="font-medium mb-1">No scheduled posts</p>
-          <p className="text-sm text-muted-foreground mb-6">Schedule a post to publish it later.</p>
+          <h3 className="text-lg font-semibold mb-2">No posts yet</h3>
+          <p className="text-muted-foreground mb-6">Create your first post to get started!</p>
           <Button onClick={() => setView('create')} variant="outline" className="gap-2">
             <Plus className="w-4 h-4" />
-            Schedule one
+            Create one
           </Button>
         </div>
       ) : (
-        <div className="space-y-3">
-          {scheduledPosts.map((post, index) => {
+        <div className="grid gap-4">
+          {publishedPosts.map((post, index) => {
             const statusCfg = STATUS_CONFIG[post.status];
             const StatusIcon = statusCfg.icon;
             return (
               <div
                 key={post.id}
                 className="bg-card rounded-lg border p-4 shadow-sm animate-slide-up"
-                style={{ animationDelay: `${index * 80}ms` }}
+                style={{ animationDelay: `${index * 50}ms` }}
               >
                 <div className="flex items-start gap-4">
                   {post.image && (
                     <img src={post.image} alt="" className="w-16 h-16 rounded-lg object-cover shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm mb-2 whitespace-pre-wrap break-words">{post.content}</p>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className={cn('inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full', statusCfg.className)}>
+                    <p className="text-sm mb-3 whitespace-pre-wrap break-words">{post.content}</p>
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <span className={cn('inline-flex items-center gap-1 text-[10px] sm:text-xs font-medium px-2 py-0.5 rounded-full', statusCfg.className)}>
                         <StatusIcon className="w-3 h-3" />
                         {statusCfg.label}
                       </span>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
                         {post.platforms.map((p) => {
                           const Icon = PLATFORM_ICONS[p];
-                          return <Icon key={p} className="w-3.5 h-3.5 text-muted-foreground" />;
+                          const result = post.platform_results?.[p];
+                          return (
+                            <span key={p} className="inline-flex items-center gap-1">
+                              <Icon className={cn('w-3.5 h-3.5', result?.success ? 'text-emerald-500' : result?.error ? 'text-red-500' : 'text-muted-foreground')} />
+                            </span>
+                          );
                         })}
                       </div>
-                      {post.scheduled_time && (
+                      {post.published_at && (
                         <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {new Date(post.scheduled_time).toLocaleString()}
+                          <Calendar className="w-3 h-3" />
+                          {new Date(post.published_at).toLocaleString()}
                         </span>
                       )}
                     </div>
+                    {/* Show platform errors if failed */}
+                    {post.status === 'failed' && Object.entries(post.platform_results || {}).map(([platform, result]) => (
+                      result.error && (
+                        <p key={platform} className="text-xs text-red-500 mt-2">
+                          {platform}: {result.error}
+                        </p>
+                      )
+                    ))}
                   </div>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(post.id)} className="shrink-0 text-muted-foreground hover:text-destructive">
+                  <Button variant="ghost" size="icon" onClick={() => handleDelete(post.id)} className="shrink-0 text-muted-foreground hover:text-destructive h-8 w-8">
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
@@ -120,4 +137,4 @@ const ScheduledPosts = () => {
   );
 };
 
-export default ScheduledPosts;
+export default Posts;

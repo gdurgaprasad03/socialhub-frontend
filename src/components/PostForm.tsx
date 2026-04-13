@@ -5,7 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { Loader2, Image, Twitter, Linkedin, Facebook, Instagram, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { 
+  Loader2, Image, Twitter, Linkedin, Facebook, Instagram, 
+  AlertCircle, CheckCircle2, ArrowLeft 
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const PLATFORM_LIMITS: Record<Platform, { maxChars: number; mediaRequired: boolean; label: string }> = {
@@ -29,15 +32,21 @@ const PLATFORM_COLORS: Record<Platform, string> = {
   instagram: 'bg-[hsl(340,75%,54%)]',
 };
 
-const CreatePost = () => {
+interface PostFormProps {
+  mode?: 'post' | 'schedule';
+  onSuccess?: () => void;
+  onCancel?: () => void;
+}
+
+const PostForm = ({ mode = 'post', onSuccess, onCancel }: PostFormProps) => {
   const [content, setContent] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([]);
-  const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+  const [imageUrl, setImageUrl] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
   const { createPost, isCreating } = usePostStore();
   const { accounts } = useAccountStore();
 
-  const connectedPlatforms = accounts.filter((a) => a.connected).map((a) => a.platform);
+  const connectedPlatforms = accounts.map((a) => a.platform);
 
   const togglePlatform = (platform: Platform) => {
     setSelectedPlatforms((prev) =>
@@ -52,14 +61,14 @@ const CreatePost = () => {
       if (content.length > limits.maxChars) {
         errors[p] = `Exceeds ${limits.maxChars} characters`;
       }
-      if (limits.mediaRequired && mediaFiles.length === 0) {
-        errors[p] = 'Media is required';
+      if (limits.mediaRequired && !imageUrl) {
+        errors[p] = 'Image URL is required';
       }
     });
     return errors;
-  }, [content, selectedPlatforms, mediaFiles]);
+  }, [content, selectedPlatforms, imageUrl]);
 
-  const canSubmit = content.trim() && selectedPlatforms.length > 0 && Object.keys(validationErrors).length === 0;
+  const canSubmit = content.trim() && selectedPlatforms.length > 0 && Object.keys(validationErrors).length === 0 && (mode === 'post' || scheduledAt);
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -67,24 +76,32 @@ const CreatePost = () => {
       await createPost({
         content,
         platforms: selectedPlatforms,
-        scheduledAt: scheduledAt || new Date().toISOString(),
-        media: mediaFiles.map((f) => URL.createObjectURL(f)),
+        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : "",
+        media: imageUrl ? [imageUrl] : [],
       });
-      toast.success('Post scheduled successfully!');
+      toast.success(scheduledAt ? 'Post scheduled successfully!' : 'Post created successfully!');
       setContent('');
       setSelectedPlatforms([]);
-      setMediaFiles([]);
+      setImageUrl('');
       setScheduledAt('');
-    } catch {
-      toast.error('Failed to create post');
+      onSuccess?.();
+    } catch (error: any) {
+      toast.error(error.toString());
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto animate-slide-up">
-      <h2 className="text-2xl font-bold mb-6">Create Post</h2>
+    <div className="animate-slide-up">
+      <div className="flex items-center gap-4 mb-4">
+        {onCancel && (
+          <Button variant="ghost" size="icon" onClick={onCancel} className="h-8 w-8">
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+        )}
+        <h2 className="text-2xl font-bold">{mode === 'schedule' ? 'Schedule Post' : 'Create Post'}</h2>
+      </div>
 
-      <div className="grid lg:grid-cols-5 gap-6">
+      <div className="grid lg:grid-cols-5 gap-4">
         {/* Editor */}
         <div className="lg:col-span-3 space-y-4">
           <div className="bg-card rounded-lg border p-4 shadow-sm">
@@ -98,24 +115,28 @@ const CreatePost = () => {
               className="w-full bg-transparent resize-none outline-none text-sm placeholder:text-muted-foreground"
             />
             <div className="flex items-center justify-between pt-3 border-t mt-3">
-              <label className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground cursor-pointer transition-colors">
-                <Image className="w-4 h-4" />
-                Add media
-                <input
-                  type="file"
-                  accept="image/*,video/*"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => setMediaFiles(Array.from(e.target.files || []))}
-                />
-              </label>
               <span className="text-xs text-muted-foreground">{content.length} chars</span>
             </div>
-            {mediaFiles.length > 0 && (
-              <div className="flex gap-2 mt-3 flex-wrap">
-                {mediaFiles.map((f, i) => (
-                  <span key={i} className="text-xs bg-muted px-2 py-1 rounded-md">{f.name}</span>
-                ))}
+          </div>
+
+          <div className="bg-card rounded-lg border p-4 shadow-sm">
+            <Label htmlFor="imageUrl" className="mb-2 block">Image URL</Label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Image className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="imageUrl"
+                  placeholder="https://images.unsplash.com/..."
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  disabled={isCreating}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+            {imageUrl && (
+              <div className="mt-3 relative aspect-video rounded-lg overflow-hidden border bg-muted">
+                <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
               </div>
             )}
           </div>
@@ -157,20 +178,22 @@ const CreatePost = () => {
             </div>
           </div>
 
-          {/* Schedule */}
-          <div className="bg-card rounded-lg border p-4 shadow-sm">
-            <Label htmlFor="schedule" className="mb-2 block">Schedule (optional)</Label>
-            <Input
-              id="schedule"
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-              disabled={isCreating}
-            />
-          </div>
+          {/* Schedule — only in schedule mode */}
+          {mode === 'schedule' && (
+            <div className="bg-card rounded-lg border p-4 shadow-sm">
+              <Label htmlFor="schedule" className="mb-2 block">Schedule Time</Label>
+              <Input
+                id="schedule"
+                type="datetime-local"
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+                disabled={isCreating}
+              />
+            </div>
+          )}
 
           <Button onClick={handleSubmit} disabled={!canSubmit || isCreating} className="w-full">
-            {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Schedule Post'}
+            {isCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : mode === 'schedule' ? 'Schedule Post' : 'Post Now'}
           </Button>
         </div>
 
@@ -201,9 +224,9 @@ const CreatePost = () => {
                   <p className="text-sm whitespace-pre-wrap break-words" style={{ overflowWrap: 'break-word' }}>
                     {content || <span className="text-muted-foreground italic">Your content will appear here…</span>}
                   </p>
-                  {mediaFiles.length > 0 && (
-                    <div className="mt-3 bg-muted rounded-md h-32 flex items-center justify-center text-xs text-muted-foreground">
-                      {mediaFiles.length} media file(s) attached
+                  {imageUrl && (
+                    <div className="mt-3 bg-muted rounded-md h-32 overflow-hidden flex items-center justify-center">
+                      <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
                     </div>
                   )}
                 </div>
@@ -216,4 +239,4 @@ const CreatePost = () => {
   );
 };
 
-export default CreatePost;
+export default PostForm;

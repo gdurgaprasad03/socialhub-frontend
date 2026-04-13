@@ -1,23 +1,23 @@
 import { useEffect, useState } from 'react';
 import { usePostStore } from '@/stores/postStore';
 import { useAccountStore } from '@/stores/accountStore';
-import api from '@/lib/api';
+import axiosInstance from '@/lib/axiosInstance';
 import { BarChart3, Calendar, CheckCircle2, TrendingUp, Users } from 'lucide-react';
 
-const Analytics = () => {
+const Dashboard = () => {
   const { posts, fetchPosts } = usePostStore();
   const { accounts, fetchAccounts } = useAccountStore();
   const [backendStats, setBackendStats] = useState<Record<string, number> | null>(null);
 
   useEffect(() => {
-    fetchPosts();
-    fetchAccounts();
-    api.get('/analytics/').then(({ data }) => setBackendStats(data)).catch(() => {});
+    fetchPosts().catch(() => {});
+    fetchAccounts().catch(() => {});
+    axiosInstance.get('/dashboard/').then(({ data }) => setBackendStats(data)).catch(() => {});
   }, [fetchPosts, fetchAccounts]);
 
   const totalPosts = backendStats?.total_posts ?? posts.length;
-  const postedCount = backendStats?.published ?? posts.filter((p) => p.status === 'posted').length;
-  const pendingCount = backendStats?.pending ?? posts.filter((p) => p.status === 'pending').length;
+  const postedCount = backendStats?.published ?? posts.filter((p) => p.status === 'published').length;
+  const pendingCount = backendStats?.pending ?? posts.filter((p) => p.status === 'scheduled').length;
   const connectedCount = backendStats?.connected_accounts ?? accounts.filter((a) => a.connected).length;
 
   const stats = [
@@ -29,9 +29,9 @@ const Analytics = () => {
 
   return (
     <div className="max-w-3xl mx-auto animate-slide-up">
-      <h2 className="text-2xl font-bold mb-6">Analytics</h2>
+      <h2 className="text-2xl font-bold mb-4">Dashboard</h2>
 
-      <div className="grid sm:grid-cols-2 gap-4 mb-8">
+      <div className="grid sm:grid-cols-2 gap-4 mb-6">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
@@ -52,7 +52,7 @@ const Analytics = () => {
 
       <div className="bg-card rounded-lg border p-8 text-center">
         <BarChart3 className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-        <p className="font-medium mb-1">Detailed analytics coming soon</p>
+        <p className="font-medium mb-1">Detailed metrics coming soon</p>
         <p className="text-sm text-muted-foreground">
           Engagement metrics, reach, and audience insights will appear here.
         </p>
@@ -61,4 +61,4 @@ const Analytics = () => {
   );
 };
 
-export default Analytics;
+export default Dashboard;

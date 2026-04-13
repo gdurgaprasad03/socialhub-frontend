@@ -2,10 +2,10 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { cn } from '@/lib/utils';
 import {
+  LayoutDashboard,
   PenSquare,
   Calendar,
   Link2,
-  BarChart3,
   LogOut,
   Share2,
   Menu,
@@ -15,10 +15,10 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
 const navItems = [
-  { to: '/dashboard', label: 'Create Post', icon: PenSquare },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/dashboard/posts', label: 'Posts', icon: PenSquare },
   { to: '/dashboard/scheduled', label: 'Scheduled Posts', icon: Calendar },
   { to: '/dashboard/accounts', label: 'Connected Accounts', icon: Link2 },
-  { to: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
 ];
 
 interface DashboardLayoutProps {
@@ -30,8 +30,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 
@@ -109,7 +109,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           </Button>
           <h1 className="text-lg font-semibold">Dashboard</h1>
         </header>
-        <main className="flex-1 p-4 lg:p-8 overflow-auto">
+        <main className="flex-1 p-3 lg:p-6 overflow-auto">
           {children}
         </main>
       </div>

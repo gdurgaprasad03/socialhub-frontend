@@ -6,10 +6,11 @@ import { useAuthStore } from "@/stores/authStore";
 import DashboardLayout from "@/components/DashboardLayout";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
-import CreatePost from "@/pages/CreatePost";
+import Posts from "@/pages/Posts";
 import ScheduledPosts from "@/pages/ScheduledPosts";
 import ConnectedAccounts from "@/pages/ConnectedAccounts";
-import Analytics from "@/pages/Analytics";
+import ConnectCallback from "@/pages/ConnectCallback";
+import Dashboard from "@/pages/Dashboard";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,10 +36,11 @@ const App = () => (
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-          <Route path="/dashboard" element={<ProtectedRoute><CreatePost /></ProtectedRoute>} />
+          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/dashboard/posts" element={<ProtectedRoute><Posts /></ProtectedRoute>} />
           <Route path="/dashboard/scheduled" element={<ProtectedRoute><ScheduledPosts /></ProtectedRoute>} />
           <Route path="/dashboard/accounts" element={<ProtectedRoute><ConnectedAccounts /></ProtectedRoute>} />
-          <Route path="/dashboard/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+          <Route path="/dashboard/accounts/callback/:platform" element={<ProtectedRoute><ConnectCallback /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
