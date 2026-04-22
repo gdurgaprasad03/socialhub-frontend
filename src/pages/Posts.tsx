@@ -1,138 +1,494 @@
-import { useState, useEffect } from 'react';
-import { usePostStore, type PostStatus, type Platform } from '@/stores/postStore';
+import { useState, useEffect, useMemo } from 'react';
+import {
+  usePostStore,
+  type Post,
+  type PostStatus,
+  type Platform,
+  resolveMediaUrl,
+} from '@/stores/postStore';
+import { useAccountStore } from '@/stores/accountStore';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import {
-  Loader2, Trash2, Clock, CheckCircle2, XCircle,
-  Calendar, MessageSquare, Plus, Twitter, Linkedin, Facebook, Instagram
+  Loader2,
+  Trash2,
+  Clock,
+  MessageSquare,
+  Plus,
+  Twitter,
+  Linkedin,
+  Facebook,
+  Instagram,
+  Youtube,
+  Sparkles,
+  Play,
+  Images,
+  Grid3x3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import PostForm from '@/components/PostForm';
+import PostDetails from '@/components/PostDetails';
+import AuthImage from '@/components/AuthImage';
 
-const STATUS_CONFIG: Record<PostStatus, { label: string; icon: React.ElementType; className: string }> = {
-  scheduled: { label: 'Scheduled', icon: Clock, className: 'text-amber-600 bg-amber-50' },
-  published: { label: 'Published', icon: CheckCircle2, className: 'text-emerald-600 bg-emerald-50' },
-  failed: { label: 'Failed', icon: XCircle, className: 'text-red-600 bg-red-50' },
+/* ─────────────────────────── Platform metadata ─────────────────────────── */
+
+const PLATFORM_META: Record<
+  Platform,
+  { label: string; icon: React.ElementType; gradient: string; underline: string }
+> = {
+  twitter: {
+    label: 'Twitter',
+    icon: Twitter,
+    gradient: 'from-slate-900 to-slate-600',
+    underline: 'from-slate-800 to-slate-500',
+  },
+  linkedin: {
+    label: 'LinkedIn',
+    icon: Linkedin,
+    gradient: 'from-sky-700 to-sky-500',
+    underline: 'from-sky-700 to-sky-500',
+  },
+  facebook: {
+    label: 'Facebook',
+    icon: Facebook,
+    gradient: 'from-blue-700 to-blue-500',
+    underline: 'from-blue-700 to-blue-500',
+  },
+  instagram: {
+    label: 'Instagram',
+    icon: Instagram,
+    gradient: 'from-pink-500 via-fuchsia-500 to-orange-400',
+    underline: 'from-pink-500 via-fuchsia-500 to-orange-400',
+  },
+  youtube: {
+    label: 'YouTube',
+    icon: Youtube,
+    gradient: 'from-red-600 to-red-400',
+    underline: 'from-red-600 to-red-400',
+  },
 };
 
-const PLATFORM_ICONS: Record<Platform, React.ElementType> = {
-  twitter: Twitter,
-  linkedin: Linkedin,
-  facebook: Facebook,
-  instagram: Instagram,
+const PLATFORMS: Platform[] = ['twitter', 'linkedin', 'facebook', 'instagram', 'youtube'];
+
+type TabKey = 'all' | Platform;
+
+const PUBLISHED_STATUSES: PostStatus[] = [
+  'published',
+  'posted',
+  'partial',
+  'failed',
+  'pending',
+  'processing',
+];
+
+/* ─────────────────────────── Media helpers ─────────────────────────── */
+
+const getFirstImage = (post: Post): string | null => {
+  if (post.images && post.images.length > 0) return resolveMediaUrl(post.images[0]);
+  if (post.image) return resolveMediaUrl(post.image);
+  if (post.media_file) return resolveMediaUrl(post.media_file);
+  return null;
 };
+
+const getVideoSrc = (post: Post): string | null => {
+  if (post.video) return resolveMediaUrl(post.video);
+  if (post.video_file) return resolveMediaUrl(post.video_file);
+  return null;
+};
+
+const countOnPlatform = (posts: Post[], platform: Platform) =>
+  posts.filter((p) => p.platforms.includes(platform)).length;
+
+/* ─────────────────────────── Page ─────────────────────────── */
 
 const Posts = () => {
   const [view, setView] = useState<'list' | 'create'>('list');
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [activeTab, setActiveTab] = useState<TabKey>('all');
   const { posts, fetchPosts, deletePost, isLoading } = usePostStore();
+  const { accounts, fetchAccounts } = useAccountStore();
 
   useEffect(() => {
     fetchPosts().catch(() => {});
-  }, [fetchPosts]);
+    fetchAccounts().catch(() => {});
+  }, [fetchPosts, fetchAccounts]);
 
   const handleDelete = (id: number) => {
     deletePost(id);
     toast.success('Post deleted');
   };
 
-  const publishedPosts = posts.filter(p => p.status === 'published' || p.status === 'failed');
+  const visiblePosts = useMemo(
+    () => posts.filter((p) => PUBLISHED_STATUSES.includes(p.status)),
+    [posts]
+  );
+
+  // Only show tabs for platforms the user has connected OR has posted to.
+  const visiblePlatforms = useMemo(() => {
+    return PLATFORMS.filter((p) => {
+      const hasAccount = accounts.some((a) => a.platform === p);
+      const hasPost = visiblePosts.some((post) => post.platforms.includes(p));
+      return hasAccount || hasPost;
+    });
+  }, [accounts, visiblePosts]);
+
+  const filteredPosts = useMemo(() => {
+    if (activeTab === 'all') return visiblePosts;
+    return visiblePosts.filter((p) => p.platforms.includes(activeTab));
+  }, [visiblePosts, activeTab]);
 
   if (view === 'create') {
     return (
       <div className="max-w-4xl mx-auto">
         <PostForm
           mode="post"
-          onSuccess={() => { fetchPosts().catch(() => {}); setView('list'); }}
+          onSuccess={() => {
+            fetchPosts().catch(() => {});
+            setView('list');
+          }}
           onCancel={() => setView('list')}
         />
       </div>
     );
   }
 
-  return (
-    <div className="max-w-4xl mx-auto animate-slide-up">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Posts</h2>
-        <Button onClick={() => setView('create')} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Create Post
-        </Button>
-      </div>
+  const activeLabel =
+    activeTab === 'all' ? 'posts' : `${PLATFORM_META[activeTab].label} posts`;
 
-      {isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-        </div>
-      ) : publishedPosts.length === 0 ? (
-        <div className="bg-card rounded-lg border p-12 text-center animate-fade-in">
-          <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-            <MessageSquare className="w-8 h-8 text-muted-foreground" />
+  return (
+    <div className="max-w-5xl mx-auto animate-slide-up space-y-4">
+      {/* Header */}
+      <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-4 sm:p-5 shadow-sm">
+        <div className="absolute -top-16 -right-10 w-48 h-48 rounded-full bg-gradient-to-br from-blue-400/15 to-blue-400/15 blur-3xl" />
+        <div className="relative flex items-center justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full">
+              <Sparkles className="w-3 h-3" />
+              Gallery
+            </div>
+            <h2 className="mt-1.5 text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+              Posts
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500">
+              Every piece of content you've shipped, organized by network.
+            </p>
           </div>
-          <h3 className="text-lg font-semibold mb-2">No posts yet</h3>
-          <p className="text-muted-foreground mb-6">Create your first post to get started!</p>
-          <Button onClick={() => setView('create')} variant="outline" className="gap-2">
+          <Button
+            onClick={() => setView('create')}
+            className="bg-gradient-to-r from-blue-600 to-blue-500 hover:opacity-95 text-white rounded-full px-4 sm:px-5 h-10 sm:h-11 shadow-md shadow-blue-500/30 text-sm"
+          >
             <Plus className="w-4 h-4" />
-            Create one
+            <span className="hidden xs:inline">Create Post</span>
+            <span className="xs:hidden">New</span>
           </Button>
         </div>
-      ) : (
-        <div className="grid gap-4">
-          {publishedPosts.map((post, index) => {
-            const statusCfg = STATUS_CONFIG[post.status];
-            const StatusIcon = statusCfg.icon;
+      </div>
+
+      {/* Tab bar + grid */}
+      <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden">
+        <div
+          className="flex overflow-x-auto border-b border-slate-200/70"
+          style={{ scrollbarWidth: 'none' }}
+        >
+          <TabButton
+            active={activeTab === 'all'}
+            onClick={() => setActiveTab('all')}
+            icon={Grid3x3}
+            label="All"
+            count={visiblePosts.length}
+            underline="from-blue-600 to-blue-400"
+          />
+          {visiblePlatforms.map((platform) => {
+            const meta = PLATFORM_META[platform];
             return (
-              <div
-                key={post.id}
-                className="bg-card rounded-lg border p-4 shadow-sm animate-slide-up"
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                <div className="flex items-start gap-4">
-                  {post.image && (
-                    <img src={post.image} alt="" className="w-16 h-16 rounded-lg object-cover shrink-0" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm mb-3 whitespace-pre-wrap break-words">{post.content}</p>
-                    <div className="flex items-center gap-4 flex-wrap">
-                      <span className={cn('inline-flex items-center gap-1 text-[10px] sm:text-xs font-medium px-2 py-0.5 rounded-full', statusCfg.className)}>
-                        <StatusIcon className="w-3 h-3" />
-                        {statusCfg.label}
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        {post.platforms.map((p) => {
-                          const Icon = PLATFORM_ICONS[p];
-                          const result = post.platform_results?.[p];
-                          return (
-                            <span key={p} className="inline-flex items-center gap-1">
-                              <Icon className={cn('w-3.5 h-3.5', result?.success ? 'text-emerald-500' : result?.error ? 'text-red-500' : 'text-muted-foreground')} />
-                            </span>
-                          );
-                        })}
-                      </div>
-                      {post.published_at && (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {new Date(post.published_at).toLocaleString()}
-                        </span>
-                      )}
-                    </div>
-                    {/* Show platform errors if failed */}
-                    {post.status === 'failed' && Object.entries(post.platform_results || {}).map(([platform, result]) => (
-                      result.error && (
-                        <p key={platform} className="text-xs text-red-500 mt-2">
-                          {platform}: {result.error}
-                        </p>
-                      )
-                    ))}
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(post.id)} className="shrink-0 text-muted-foreground hover:text-destructive h-8 w-8">
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
+              <TabButton
+                key={platform}
+                active={activeTab === platform}
+                onClick={() => setActiveTab(platform)}
+                icon={meta.icon}
+                label={meta.label}
+                count={countOnPlatform(visiblePosts, platform)}
+                underline={meta.underline}
+              />
             );
           })}
         </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+          </div>
+        ) : filteredPosts.length === 0 ? (
+          <div className="relative overflow-hidden p-10 sm:p-12 text-center">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-50/60 via-white to-sky-50/50" />
+            <div className="relative">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center mx-auto mb-3 shadow-md shadow-blue-500/30">
+                <MessageSquare className="w-5 h-5 text-white" />
+              </div>
+              <h3 className="text-base font-semibold text-slate-900 mb-1">No {activeLabel}</h3>
+              <p className="text-sm text-slate-500 mb-4">
+                {activeTab === 'all'
+                  ? 'Create your first post to get started.'
+                  : `Post something to ${PLATFORM_META[activeTab].label} to see it here.`}
+              </p>
+              <Button
+                onClick={() => setView('create')}
+                className="bg-gradient-to-r from-blue-600 to-blue-500 hover:opacity-95 text-white rounded-full px-4 h-9"
+              >
+                <Plus className="w-4 h-4" />
+                Create one
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-0.5 sm:gap-1 p-0.5 sm:p-1">
+            {filteredPosts.map((post, index) => (
+              <PostTile
+                key={post.id}
+                post={post}
+                activePlatform={activeTab === 'all' ? null : activeTab}
+                onClick={() => setSelectedPost(post)}
+                onDelete={() => handleDelete(post.id)}
+                animationDelay={index * 25}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <PostDetails
+        post={selectedPost}
+        open={selectedPost !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedPost(null);
+        }}
+      />
+    </div>
+  );
+};
+
+/* ─────────────────────────── Tab button ─────────────────────────── */
+
+interface TabButtonProps {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ElementType;
+  label: string;
+  count: number;
+  underline: string;
+}
+
+const TabButton = ({ active, onClick, icon: Icon, label, count, underline }: TabButtonProps) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={cn(
+      'relative flex items-center gap-2 px-3 sm:px-4 py-3 text-sm font-medium shrink-0 transition-colors',
+      active ? 'text-slate-900' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+    )}
+  >
+    <Icon className="w-4 h-4 shrink-0" />
+    <span className="whitespace-nowrap">{label}</span>
+    <span
+      className={cn(
+        'text-[10px] font-semibold px-1.5 py-0.5 rounded-full min-w-[1.25rem] text-center tabular-nums',
+        active ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'
       )}
+    >
+      {count}
+    </span>
+    {active && (
+      <span
+        className={cn(
+          'absolute bottom-0 left-2 right-2 h-[2px] rounded-full bg-gradient-to-r',
+          underline
+        )}
+      />
+    )}
+  </button>
+);
+
+/* ─────────────────────────── Grid tile ─────────────────────────── */
+
+interface PostTileProps {
+  post: Post;
+  activePlatform: Platform | null;
+  onClick: () => void;
+  onDelete: () => void;
+  animationDelay: number;
+}
+
+const PostTile = ({ post, activePlatform, onClick, onDelete, animationDelay }: PostTileProps) => {
+  const image = getFirstImage(post);
+  const video = getVideoSrc(post);
+  const imageCount = (post.images?.length ?? 0) + (post.image ? 1 : 0);
+  const isCarousel = imageCount > 1;
+
+  // Account usernames — prefer the new target_account_details field, fall back
+  // to platform_results entries (which sometimes carry display_name + platform).
+  const accountLabels = (() => {
+    const details = post.target_account_details ?? [];
+    if (details.length > 0) {
+      // If a platform tab is active, show only accounts for that platform.
+      const filtered = activePlatform
+        ? details.filter((d) => d.platform === activePlatform)
+        : details;
+      return filtered.map((d) => ({
+        platform: d.platform,
+        handle: d.platform_username || d.display_name || '',
+      }));
+    }
+    // Fallback: scan platform_results for display_name / platform pairs.
+    return Object.entries(post.platform_results ?? {})
+      .map(([, r]) => ({
+        platform: (r.platform as Platform | undefined) ?? null,
+        handle: r.display_name || '',
+      }))
+      .filter((x) => x.handle);
+  })();
+  const primaryHandle = accountLabels.find((a) => a.handle)?.handle ?? '';
+
+  // Tile status — when a specific platform tab is open, show that platform's
+  // outcome; otherwise use the overall post status.
+  let tileStatusClass = 'bg-slate-400';
+  if (activePlatform) {
+    const r = post.platform_results?.[activePlatform];
+    if (r?.success) tileStatusClass = 'bg-emerald-500';
+    else if (r?.error) tileStatusClass = 'bg-red-500';
+  } else {
+    if (post.status === 'published' || post.status === 'posted') tileStatusClass = 'bg-emerald-500';
+    else if (post.status === 'partial') tileStatusClass = 'bg-amber-500';
+    else if (post.status === 'failed') tileStatusClass = 'bg-red-500';
+  }
+
+  const timeLabel = post.published_at
+    ? new Date(post.published_at).toLocaleDateString()
+    : new Date(post.created_at).toLocaleDateString();
+
+  return (
+    <div
+      onClick={onClick}
+      className="group relative aspect-square bg-slate-100 overflow-hidden cursor-pointer animate-slide-up"
+      style={{ animationDelay: `${animationDelay}ms` }}
+    >
+      {/* Media / fallback */}
+      {image ? (
+        <AuthImage
+          src={image}
+          alt=""
+          loading="lazy"
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          wrapperClassName="w-full h-full"
+        />
+      ) : video ? (
+        <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-600 flex items-center justify-center">
+          <Play className="w-10 h-10 text-white/70" fill="currentColor" />
+        </div>
+      ) : (
+        <div className="w-full h-full bg-gradient-to-br from-blue-50 via-white to-sky-50 flex items-center justify-center p-3">
+          <p className="text-[11px] sm:text-xs text-slate-700 line-clamp-6 text-center leading-snug">
+            {post.content || <span className="italic text-slate-400">(no caption)</span>}
+          </p>
+        </div>
+      )}
+
+      {/* Top-left status dot */}
+      <div
+        className={cn(
+          'absolute top-1.5 left-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-white/80 shadow-sm',
+          tileStatusClass
+        )}
+      />
+
+      {/* Top-right: carousel / video indicator */}
+      <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
+        {isCarousel && (
+          <div className="w-6 h-6 rounded-md bg-black/45 backdrop-blur-sm flex items-center justify-center text-white">
+            <Images className="w-3.5 h-3.5" />
+          </div>
+        )}
+        {video && image && (
+          <div className="w-6 h-6 rounded-md bg-black/45 backdrop-blur-sm flex items-center justify-center text-white">
+            <Play className="w-3.5 h-3.5" fill="currentColor" />
+          </div>
+        )}
+      </div>
+
+      {/* Bottom platform pills — always visible so the tab filter is obvious */}
+      <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
+        {post.platforms.map((p) => {
+          const meta = PLATFORM_META[p];
+          const Icon = meta.icon;
+          const r = post.platform_results?.[p];
+          const failed = Boolean(r?.error);
+          return (
+            <div
+              key={p}
+              className={cn(
+                'w-5 h-5 rounded-md bg-gradient-to-br flex items-center justify-center text-white shadow ring-1 ring-white/40',
+                meta.gradient,
+                failed && 'opacity-40 grayscale'
+              )}
+              title={`${meta.label}${failed ? ' (failed)' : ''}`}
+            >
+              <Icon className="w-2.5 h-2.5" />
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Always-visible account chip (first handle) */}
+      {primaryHandle && (
+        <div className="absolute bottom-1.5 right-1.5 max-w-[60%] px-1.5 py-0.5 rounded-md bg-black/45 backdrop-blur-sm text-white text-[10px] font-medium truncate pointer-events-none">
+          @{primaryHandle}
+        </div>
+      )}
+
+      {/* Hover overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2.5">
+        <p className="text-white text-[11px] sm:text-xs line-clamp-3 mb-1.5 leading-snug">
+          {post.content || <span className="italic text-white/70">(no caption)</span>}
+        </p>
+
+        {/* Account handles */}
+        {accountLabels.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-1.5">
+            {accountLabels.slice(0, 3).map((a, i) => {
+              const Icon = a.platform ? PLATFORM_META[a.platform].icon : null;
+              return (
+                <span
+                  key={`${a.platform ?? 'x'}-${a.handle}-${i}`}
+                  className="inline-flex items-center gap-1 text-[10px] text-white bg-white/15 backdrop-blur-sm rounded-md px-1.5 py-0.5"
+                >
+                  {Icon && <Icon className="w-2.5 h-2.5" />}
+                  <span className="truncate max-w-[90px]">@{a.handle}</span>
+                </span>
+              );
+            })}
+            {accountLabels.length > 3 && (
+              <span className="text-[10px] text-white/70">+{accountLabels.length - 3}</span>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] text-white/80 flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {timeLabel}
+          </span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="w-6 h-6 rounded-md bg-white/15 hover:bg-red-500/90 text-white flex items-center justify-center transition-colors"
+            title="Delete"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

@@ -11,7 +11,12 @@ import ScheduledPosts from "@/pages/ScheduledPosts";
 import ConnectedAccounts from "@/pages/ConnectedAccounts";
 import ConnectCallback from "@/pages/ConnectCallback";
 import Dashboard from "@/pages/Dashboard";
+import Drafts from "@/pages/Drafts";
+import SocialAuthCallback from "@/pages/SocialAuthCallback";
 import NotFound from "@/pages/NotFound";
+import Index from "@/pages/Index";
+import CalendarPage from "@/pages/CalendarPage";
+import Billing from "@/pages/Billing";
 
 const queryClient = new QueryClient();
 
@@ -19,6 +24,12 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuthStore();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <DashboardLayout>{children}</DashboardLayout>;
+};
+
+const AuthRequired = ({ children }: { children: React.ReactNode }) => {
+  const { isAuthenticated } = useAuthStore();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <>{children}</>;
 };
 
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
@@ -33,14 +44,19 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<Index />} />
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="/dashboard/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
           <Route path="/dashboard/posts" element={<ProtectedRoute><Posts /></ProtectedRoute>} />
           <Route path="/dashboard/scheduled" element={<ProtectedRoute><ScheduledPosts /></ProtectedRoute>} />
+          <Route path="/dashboard/drafts" element={<ProtectedRoute><Drafts /></ProtectedRoute>} />
           <Route path="/dashboard/accounts" element={<ProtectedRoute><ConnectedAccounts /></ProtectedRoute>} />
           <Route path="/dashboard/accounts/callback/:platform" element={<ProtectedRoute><ConnectCallback /></ProtectedRoute>} />
+          <Route path="/dashboard/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
+          <Route path="/social/success" element={<AuthRequired><SocialAuthCallback /></AuthRequired>} />
+          <Route path="/social/error" element={<AuthRequired><SocialAuthCallback /></AuthRequired>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

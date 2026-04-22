@@ -125,6 +125,9 @@ export const useAccountStore = create<AccountState>((set, get) => ({
     set((state) => ({
       accounts: state.accounts.filter((a) => a.id !== id),
     }));
+    // Force a fresh fetch to ensure consistency
+    const { data } = await axiosInstance.get('/social-accounts/');
+    set({ accounts: Array.isArray(data) ? data : data.results || [] });
   },
 }));
 

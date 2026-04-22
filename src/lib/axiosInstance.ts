@@ -1,15 +1,22 @@
 import axios from 'axios';
 import { useAuthStore } from '@/stores/authStore';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://192.168.0.113:8000/api';
+// const API_BASE = import.meta.env.VITE_API_URL || 'http://192.168.0.114:9000/api';
+const API_BASE = 'https://pseudopregnant-fatless-ila.ngrok-free.dev/api';
 
 const axiosInstance = axios.create({
   baseURL: API_BASE,
-  headers: { 'Content-Type': 'application/json' },
+    headers: { 
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
+  },
+
+  // withCredentials: true,
 });
 
 axiosInstance.interceptors.request.use((config) => {
   const token = useAuthStore.getState().token;
+  console.log('Token:', token ? 'present' : 'missing', 'URL:', config.url);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -61,11 +68,16 @@ axiosInstance.interceptors.response.use(
       }
 
       try {
-        const { data } = await axios.post(`${API_BASE}/refresh/`, {
-          refresh: refreshToken,
-        });
+        const { data } = await axios.post(
+          `${API_BASE}/refresh/`,
+          { refresh: refreshToken },
+          { headers: { 'ngrok-skip-browser-warning': 'true' } }
+        );
 
         const newToken = data.access || data.token;
+        if (!newToken) {
+          throw new Error('Refresh response missing access token');
+        }
 
         // Update store with new access token
         useAuthStore.setState({ token: newToken });

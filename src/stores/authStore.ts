@@ -31,11 +31,13 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: false,
       error: null,
-      login: async (username: string, password: string) => {
+      login: async (identifier: string, password: string) => {
         set({ isLoading: true, error: null });
         try {
-          const { data } = await axiosInstance.post('/login/', { username, password });
-          const user = data.user || { id: data.id, email: data.email, name: data.name || username };
+          const isEmail = identifier.includes('@');
+          const payload = isEmail ? { email: identifier, password } : { username: identifier, password };
+          const { data } = await axiosInstance.post('/login/', payload);
+          const user = data.user || { id: data.id, email: data.email, name: data.name || identifier };
           const token = data.token || data.access;
           const refreshToken = data.refresh;
           set({ user, token, refreshToken, isAuthenticated: true, isLoading: false, error: null });
@@ -69,11 +71,8 @@ export const useAuthStore = create<AuthState>()(
       register: async (name: string, email: string, password: string) => {
         set({ isLoading: true, error: null });
         try {
-          const { data } = await axiosInstance.post('/register/', { username: name, email, password });
-          const user = data.user || { id: data.id, email: data.email, name: data.name || name };
-          const token = data.token || data.access;
-          const refreshToken = data.refresh;
-          set({ user, token, refreshToken, isAuthenticated: true, isLoading: false, error: null });
+          await axiosInstance.post('/register/', { username: name, email, password });
+          set({ isLoading: false, error: null });
         } catch (error: any) {
           console.error("Register error:", error.response?.data);
           let errorMessage = 'Registration failed';
