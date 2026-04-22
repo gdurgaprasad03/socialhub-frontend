@@ -11,6 +11,7 @@ import {
   Instagram,
   Facebook,
   Linkedin,
+  Youtube,
   Link2,
   PencilLine,
   Share2,
@@ -27,6 +28,7 @@ import {
   TrendingUp,
   Heart,
   MessageCircle,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/stores/authStore";
@@ -36,6 +38,7 @@ const platforms = [
   { name: "Facebook", icon: Facebook, color: "from-blue-600 to-blue-400" },
   { name: "LinkedIn", icon: Linkedin, color: "from-sky-700 to-sky-500" },
   { name: "Twitter", icon: Twitter, color: "from-slate-900 to-slate-600" },
+  { name: "YouTube", icon: Youtube, color: "from-red-600 to-red-400" },
 ];
 
 /* ----------------------------- Navbar ----------------------------- */
@@ -80,7 +83,7 @@ const Navbar = () => {
           </Link>
           <Link to="/register">
             <Button className="bg-gradient-to-r from-blue-600 to-blue-500 hover:opacity-95 text-white shadow-md shadow-blue-500/30 rounded-full px-4 sm:px-5 h-9 text-sm">
-              Get started
+              Start free trial
             </Button>
           </Link>
         </div>
@@ -167,6 +170,8 @@ const HeroMock = () => {
                               ? "linear-gradient(90deg, #2563eb, #60a5fa)"
                               : p.name === "LinkedIn"
                               ? "linear-gradient(90deg, #0369a1, #0ea5e9)"
+                              : p.name === "YouTube"
+                              ? "linear-gradient(90deg, #dc2626, #f87171)"
                               : "linear-gradient(90deg, #0f172a, #475569)",
                         }
                       : {}
@@ -178,6 +183,13 @@ const HeroMock = () => {
                 </button>
               );
             })}
+            <span
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium border border-dashed border-slate-300 text-slate-500 bg-white"
+              title="More networks coming soon"
+            >
+              <Plus className="w-3 h-3" />
+              more soon
+            </span>
           </div>
         </div>
 
@@ -222,7 +234,7 @@ const HeroMock = () => {
       >
         <div className="flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-          <p className="text-xs font-medium text-slate-700">Posted to 4 networks</p>
+          <p className="text-xs font-medium text-slate-700">Posted to 5 networks</p>
         </div>
         <div className="mt-2 flex items-center gap-1">
           {platforms.map((p) => {
@@ -290,8 +302,8 @@ const Hero = () => (
           transition={{ duration: 0.7, delay: 0.15 }}
           className="mt-5 text-lg text-slate-600 leading-relaxed max-w-xl"
         >
-          One credit-based workspace for every network. Schedule, publish, and track
-          performance across Instagram, Facebook, LinkedIn, and Twitter — from a single pane.
+          One credit-based workspace for every network. Schedule, publish, and track performance
+          across Instagram, Facebook, LinkedIn, Twitter, and YouTube — with more coming soon.
         </motion.p>
 
         <motion.div
@@ -305,7 +317,7 @@ const Hero = () => (
               size="lg"
               className="bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:opacity-95 rounded-full px-7 h-12 shadow-lg shadow-blue-500/30"
             >
-              Get Started
+              Start free trial
               <ArrowRight className="w-4 h-4" />
             </Button>
           </Link>
@@ -329,11 +341,11 @@ const Hero = () => (
         >
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-            Pay only for what you post
+            7-day free trial
           </div>
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-            Secure payments by Razorpay
+            No credit card required
           </div>
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-500" />
@@ -373,7 +385,7 @@ const features = [
   {
     icon: Layers,
     title: "Multi-Platform Posting",
-    desc: "Write once, publish everywhere across Instagram, Facebook, LinkedIn, and Twitter.",
+    desc: "Write once, publish everywhere across Instagram, Facebook, LinkedIn, Twitter, and YouTube — with more on the way.",
     gradient: "from-blue-600 to-blue-500",
   },
   {
@@ -476,7 +488,7 @@ const showcaseSteps = [
     icon: Share2,
     label: "Platforms",
     title: "Publish anywhere, instantly.",
-    desc: "Pick any combination of Instagram, Facebook, LinkedIn, and Twitter in one click.",
+    desc: "Pick any combination of Instagram, Facebook, LinkedIn, Twitter, and YouTube in one click.",
     highlights: ["Per-network variants", "Character-count safe", "Reel & Story support"],
   },
   {
@@ -911,7 +923,7 @@ const MidCTA = () => (
           Start managing your social media smarter today.
         </h2>
         <p className="relative mt-4 text-sm sm:text-base text-white/80 max-w-xl mx-auto">
-          Join thousands of creators and teams using Social Media Hub to publish everywhere, faster.
+          Join thousands of creators and teams using Social Media Hub to publish everywhere, faster. Free for 7 days.
         </p>
         <div className="relative mt-6 sm:mt-8 flex flex-wrap items-center justify-center gap-3">
           <Link to="/register">
@@ -919,7 +931,7 @@ const MidCTA = () => (
               size="lg"
               className="bg-white text-blue-700 hover:bg-white/90 rounded-full px-6 sm:px-8 h-11 sm:h-12 font-semibold shadow-lg"
             >
-              Register Now
+              Start free trial
               <ArrowRight className="w-4 h-4" />
             </Button>
           </Link>
@@ -1035,7 +1047,7 @@ const FinalCTA = () => (
         </span>
       </motion.h2>
       <p className="mt-5 text-base sm:text-lg text-slate-600">
-        Try Social Media Hub free — no credit card required.
+        Try Social Media Hub free for 7 days — no credit card required.
       </p>
       <div className="mt-6 sm:mt-8 flex flex-wrap items-center justify-center gap-3">
         <Link to="/register">
@@ -1043,7 +1055,7 @@ const FinalCTA = () => (
             size="lg"
             className="bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:opacity-95 rounded-full px-6 sm:px-8 h-11 sm:h-12 shadow-lg shadow-blue-500/30"
           >
-            Get Started Free
+            Start free trial
             <ArrowRight className="w-4 h-4" />
           </Button>
         </Link>

@@ -18,6 +18,7 @@ import {
   Calendar,
   TrendingUp,
   Users2,
+  Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -72,7 +73,7 @@ const normalizePlan = (p: Plan) => {
   // Slug-driven value props so each tier feels distinct.
   const extras: Record<string, string[]> = {
     free: ['Core composer & calendar', 'Community support'],
-    starter: ['Schedule & queue', 'Per-network previews', 'Email support'],
+    basic: ['Schedule & queue', 'Per-network previews', 'Email support'],
     pro: ['Analytics & reports', 'Team collaboration', 'Priority support'],
     agency: ['White-label exports', 'Dedicated success manager', 'SLA-backed uptime'],
   };
@@ -106,7 +107,7 @@ const TIER_STYLES: Record<string, TierStyle> = {
     accent: 'from-slate-500 to-slate-700',
     pill: 'bg-slate-100 text-slate-600 border border-slate-200',
   },
-  starter: {
+  basic: {
     icon: Sparkles,
     accent: 'from-blue-600 to-blue-400',
     pill: 'bg-blue-50 text-blue-700 border border-blue-100',
@@ -164,15 +165,45 @@ const Billing = () => {
   );
 
   const currentPlanId = subscription?.plan?.id ?? (subscription as any)?.plan_id ?? null;
+  // Trust backend `is_active` when present, fall back to status string.
   const isActive =
+    Boolean(subscription?.is_active) ||
     subscription?.status === 'active' ||
     subscription?.status === 'trialing' ||
     subscription?.status === 'pending';
+  const isCancelled =
+    Boolean(subscription?.cancelled_at) ||
+    subscription?.status === 'cancelled' ||
+    subscription?.status === 'canceled';
 
+  const isUnlimited = Boolean(usage?.is_unlimited);
   const creditsRemaining = Number(usage?.credits_remaining ?? subscription?.credits_remaining ?? 0);
   const creditsUsed = Number(usage?.credits_used ?? subscription?.credits_used ?? 0);
   const creditsTotal = Number(usage?.credits_total ?? creditsRemaining + creditsUsed);
-  const usagePct = creditsTotal > 0 ? Math.min(100, Math.round((creditsUsed / creditsTotal) * 100)) : 0;
+  const usagePct = isUnlimited
+    ? 0
+    : typeof usage?.usage_percentage === 'number' && usage.usage_percentage > 0
+    ? Math.min(100, Math.round(usage.usage_percentage))
+    : creditsTotal > 0
+    ? Math.min(100, Math.round((creditsUsed / creditsTotal) * 100))
+    : 0;
+
+  const currentPlanName =
+    subscription?.plan?.name ||
+    subscription?.plan_name ||
+    usage?.plan_name ||
+    'Current plan';
+  const daysLeft = typeof usage?.days_left === 'number' ? usage.days_left : null;
+  const dailyUsed = Number(usage?.daily_used ?? 0);
+  const dailyLimit = Number(usage?.daily_limit ?? 0);
+  const dailyPct =
+    dailyLimit > 0 ? Math.min(100, Math.round((dailyUsed / dailyLimit) * 100)) : 0;
+  const maxAccounts =
+    typeof usage?.max_accounts === 'number'
+      ? usage.max_accounts
+      : typeof subscription?.plan?.max_accounts === 'number'
+      ? subscription.plan.max_accounts
+      : null;
 
   const handleSubscribe = async (plan: ReturnType<typeof normalizePlan>) => {
     if (plan.isFree) {
@@ -275,70 +306,241 @@ const Billing = () => {
 
           {/* Posts meter */}
           <div className="w-full md:w-auto md:min-w-[260px] bg-white/10 backdrop-blur border border-white/20 rounded-xl p-3.5">
-            <div className="flex items-center gap-2 mb-1.5">
-              <Gauge className="w-3.5 h-3.5" />
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-white/80">Posts this cycle</p>
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <div className="flex items-center gap-2">
+                <Gauge className="w-3.5 h-3.5" />
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-white/80">
+                  Posts this cycle
+                </p>
+              </div>
+              {daysLeft !== null && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-white bg-white/20 backdrop-blur border border-white/30 px-1.5 py-0.5 rounded-full">
+                  <Calendar className="w-3 h-3" />
+                  {daysLeft} day{daysLeft === 1 ? '' : 's'} left
+                </span>
+              )}
             </div>
-            <div className="flex items-baseline gap-2">
-              <p className="text-3xl font-bold tabular-nums leading-tight">{creditsRemaining}</p>
-              {creditsTotal > 0 && <p className="text-sm text-white/70">of {creditsTotal}</p>}
-            </div>
-            <div className="mt-2 h-1.5 rounded-full bg-white/15 overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-white via-blue-100 to-blue-100"
-                style={{ width: `${Math.max(0, 100 - usagePct)}%` }}
-              />
-            </div>
-            <p className="mt-1.5 text-[10px] text-white/70">{creditsUsed} used · {usagePct}%</p>
+            {isUnlimited ? (
+              <div className="flex items-center gap-2">
+                <InfinityIcon className="w-8 h-8" />
+                <div>
+                  <p className="text-2xl font-bold leading-tight">Unlimited</p>
+                  <p className="text-[11px] text-white/70">{creditsUsed} used</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-3xl font-bold tabular-nums leading-tight">{creditsRemaining}</p>
+                  {creditsTotal > 0 && <p className="text-sm text-white/70">of {creditsTotal}</p>}
+                </div>
+                <div className="mt-2 h-1.5 rounded-full bg-white/15 overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-white via-blue-100 to-blue-100"
+                    style={{ width: `${Math.max(0, 100 - usagePct)}%` }}
+                  />
+                </div>
+                <p className="mt-1.5 text-[10px] text-white/70">{creditsUsed} used · {usagePct}%</p>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Current subscription */}
-      {isActive && subscription && (
+      {/* Current / active plan card — renders for paid subs AND free users
+          who have no subscription row but do have a plan_name in usage */}
+      {(subscription && (isActive || isCancelled)) || usage?.plan_name ? (
         <div className="relative overflow-hidden bg-white rounded-2xl border border-slate-200/70 shadow-sm">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-50/40 via-white to-sky-50/30" />
-          <div className="relative px-4 sm:px-5 py-3.5 flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center shadow-md shadow-blue-500/30">
+          {/* Accent strip */}
+          <div
+            className={cn(
+              'h-1 w-full bg-gradient-to-r',
+              isCancelled
+                ? 'from-rose-500 to-red-500'
+                : 'from-blue-600 via-blue-500 to-sky-400'
+            )}
+          />
+
+          <div className="relative p-4 sm:p-5 grid md:grid-cols-[1fr_auto] gap-4 items-center">
+            <div className="flex items-center gap-4 min-w-0">
+              <div
+                className={cn(
+                  'w-12 h-12 rounded-xl flex items-center justify-center shadow-md shrink-0',
+                  isCancelled
+                    ? 'bg-gradient-to-br from-rose-500 to-red-500 shadow-red-500/30'
+                    : 'bg-gradient-to-br from-blue-600 to-blue-400 shadow-blue-500/30'
+                )}
+              >
                 <Crown className="w-6 h-6 text-white" />
               </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-blue-600">
-                  Active plan
-                </p>
-                <p className="text-lg font-bold tracking-tight text-slate-900">
-                  {subscription.plan?.name || subscription.plan_name || 'Subscribed'}
-                </p>
-                {subscription.current_period_end && (
-                  <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                    <Calendar className="w-3 h-3" />
-                    Renews {new Date(subscription.current_period_end).toLocaleDateString()}
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-blue-600">
+                    {isCancelled ? 'Cancelled plan' : 'Active plan'}
                   </p>
-                )}
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full',
+                      isCancelled
+                        ? 'text-rose-700 bg-rose-50 border border-rose-200'
+                        : subscription?.status === 'trialing'
+                        ? 'text-amber-700 bg-amber-50 border border-amber-200'
+                        : 'text-emerald-700 bg-emerald-50 border border-emerald-200'
+                    )}
+                  >
+                    <Check className="w-3 h-3" />
+                    {isCancelled
+                      ? 'Cancelled'
+                      : subscription?.status === 'trialing'
+                      ? 'Trial'
+                      : 'Active'}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xl sm:text-2xl font-bold tracking-tight text-slate-900 truncate">
+                  {currentPlanName}
+                </p>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                  {daysLeft !== null && (
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1 font-medium px-1.5 py-0.5 rounded-md',
+                        daysLeft <= 3
+                          ? 'text-amber-700 bg-amber-50 border border-amber-200'
+                          : 'text-blue-700 bg-blue-50 border border-blue-100'
+                      )}
+                    >
+                      <Clock className="w-3 h-3" />
+                      {daysLeft} day{daysLeft === 1 ? '' : 's'} left
+                    </span>
+                  )}
+                  {subscription?.current_period_end && (
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      {isCancelled ? 'Access until' : 'Renews'}{' '}
+                      {new Date(subscription.current_period_end).toLocaleDateString()}
+                    </span>
+                  )}
+                  {subscription?.plan?.price !== undefined && !subscription.plan?.is_free && (
+                    <span className="flex items-center gap-1">
+                      <CreditCard className="w-3 h-3" />
+                      {formatCurrency(Number(subscription.plan.price), subscription.plan.currency)}
+                      {' / '}
+                      {normalizeInterval(subscription.plan.interval || 'month')}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
-                <Check className="w-3 h-3" />
-                {subscription.status === 'trialing' ? 'Trial' : 'Active'}
-              </span>
+            {subscription && !isCancelled && !subscription?.plan?.is_free && (
               <Button
                 variant="outline"
                 onClick={() => setConfirmCancel(true)}
                 disabled={isCancelling}
-                className="rounded-full border-slate-300 text-slate-600 hover:text-destructive hover:border-destructive/30"
+                className="rounded-full border-slate-300 text-slate-600 hover:text-destructive hover:border-destructive/30 shrink-0"
               >
                 {isCancelling ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
-                Cancel
+                Cancel plan
               </Button>
+            )}
+          </div>
+
+          {/* Embedded usage row (below the plan row) */}
+          <div className="relative px-4 sm:px-5 pb-4 sm:pb-5">
+            <div className="rounded-xl bg-gradient-to-br from-blue-50/60 via-white to-sky-50/50 border border-slate-200/70 p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500 flex items-center gap-1.5">
+                  <Gauge className="w-3 h-3" />
+                  Usage this period
+                </p>
+                {usage?.period_start && (
+                  <p className="text-[11px] text-slate-400">
+                    Since {new Date(usage.period_start).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+              {isUnlimited ? (
+                <div className="flex items-center gap-2">
+                  <InfinityIcon className="w-6 h-6 text-blue-600" />
+                  <p className="text-lg font-bold tracking-tight text-slate-900">
+                    {creditsUsed} <span className="text-sm font-normal text-slate-500">/ unlimited posts</span>
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="text-2xl font-bold tracking-tight tabular-nums text-slate-900">
+                      {creditsUsed}
+                      <span className="ml-2 text-base font-normal text-slate-400">
+                        / {creditsTotal} posts
+                      </span>
+                    </p>
+                    <p className="text-sm text-slate-500 tabular-nums">{usagePct}%</p>
+                  </div>
+                  <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden ring-1 ring-inset ring-slate-200/60">
+                    <div
+                      className={cn(
+                        'h-full rounded-full transition-all duration-500',
+                        usagePct >= 80
+                          ? 'bg-gradient-to-r from-orange-500 to-rose-500'
+                          : 'bg-gradient-to-r from-blue-600 via-blue-500 to-sky-400'
+                      )}
+                      style={{ width: `${usagePct}%` }}
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Daily quota + accounts footnote */}
+              {(dailyLimit > 0 || maxAccounts !== null) && (
+                <div className="mt-3 pt-3 border-t border-slate-200/70 grid sm:grid-cols-2 gap-3">
+                  {dailyLimit > 0 && (
+                    <div>
+                      <div className="flex items-baseline justify-between gap-1">
+                        <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">
+                          Today
+                        </p>
+                        <p className="text-xs font-semibold text-slate-700 tabular-nums">
+                          {dailyUsed}
+                          <span className="text-slate-400 font-normal"> / {dailyLimit}</span>
+                        </p>
+                      </div>
+                      <div className="mt-1 h-1.5 rounded-full bg-slate-100 overflow-hidden ring-1 ring-inset ring-slate-200/60">
+                        <div
+                          className={cn(
+                            'h-full rounded-full',
+                            dailyPct >= 80
+                              ? 'bg-gradient-to-r from-orange-500 to-rose-500'
+                              : 'bg-gradient-to-r from-blue-500 to-sky-400'
+                          )}
+                          style={{ width: `${dailyPct}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {maxAccounts !== null && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-sky-400 flex items-center justify-center shrink-0">
+                        <Users2 className="w-3.5 h-3.5 text-white" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">
+                          Accounts
+                        </p>
+                        <p className="text-xs font-semibold text-slate-700">
+                          {maxAccounts < 0 ? 'Unlimited' : `Up to ${maxAccounts}`}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
           {/* Cancel confirm */}
-          {confirmCancel && (
-            <div className="relative mx-5 sm:mx-6 mb-5 sm:mb-6 p-4 bg-rose-50/80 border border-rose-200 rounded-xl flex items-center justify-between gap-3 flex-wrap">
+          {confirmCancel && !isCancelled && (
+            <div className="relative mx-4 sm:mx-5 mb-4 sm:mb-5 p-4 bg-rose-50/80 border border-rose-200 rounded-xl flex items-center justify-between gap-3 flex-wrap">
               <p className="text-sm text-rose-900">
                 Cancel your subscription? You'll keep access until the end of this period.
               </p>
@@ -361,44 +563,15 @@ const Billing = () => {
             </div>
           )}
         </div>
-      )}
+      ) : null}
 
-      {/* Usage breakdown */}
-      {usage && creditsTotal > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm p-4 sm:p-5">
-          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-blue-600" />
-              <h3 className="text-sm font-semibold text-slate-900 tracking-tight">Usage this cycle</h3>
-            </div>
-            {usage.period_end && (
-              <p className="text-xs text-slate-500">
-                Resets {new Date(usage.period_end).toLocaleDateString()}
-              </p>
-            )}
-          </div>
-          <div className="flex items-end justify-between mb-2">
-            <p className="text-3xl font-bold tracking-tight tabular-nums text-slate-900">
-              {creditsUsed} <span className="text-slate-400 text-base font-normal">/ {creditsTotal} posts</span>
-            </p>
-            <p className="text-sm text-slate-500 tabular-nums">{usagePct}% used</p>
-          </div>
-          <div className="h-3 rounded-full bg-slate-100 overflow-hidden ring-1 ring-inset ring-slate-200/60">
-            <div
-              className={cn(
-                'h-full rounded-full transition-all duration-500',
-                usagePct < 80
-                  ? 'bg-gradient-to-r from-blue-600 to-blue-400'
-                  : 'bg-gradient-to-r from-orange-500 to-rose-500'
-              )}
-              style={{ width: `${usagePct}%` }}
-            />
-          </div>
-          {usagePct >= 80 && (
-            <p className="mt-3 text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
-              You've used {usagePct}% of your monthly posts. Upgrade to keep shipping content.
-            </p>
-          )}
+      {/* Usage warning — only when quota is finite and nearly exhausted */}
+      {usage && !isUnlimited && creditsTotal > 0 && usagePct >= 80 && (
+        <div className="flex items-center gap-3 text-sm text-orange-800 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
+          <TrendingUp className="w-4 h-4 shrink-0" />
+          <p className="flex-1">
+            You've used <span className="font-semibold tabular-nums">{usagePct}%</span> of your monthly posts. Upgrade to keep shipping.
+          </p>
         </div>
       )}
 

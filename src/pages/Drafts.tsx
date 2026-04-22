@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import PostForm from '@/components/PostForm';
 import PostDetails from '@/components/PostDetails';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 const PLATFORM_ICONS: Record<Platform, React.ElementType> = {
   twitter: Twitter, linkedin: Linkedin, facebook: Facebook, instagram: Instagram, youtube: Youtube,
@@ -21,9 +22,21 @@ const Drafts = () => {
 
   const drafts = posts.filter(p => p.status === 'draft' || (p as any).is_draft);
 
-  const handleDelete = (id: number) => {
-    deletePost(id);
-    toast.success('Draft deleted');
+  const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deletePost(deleteTarget.id);
+      toast.success('Draft deleted');
+      setDeleteTarget(null);
+    } catch (err: any) {
+      toast.error(err?.toString?.() || 'Failed to delete');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   if (view === 'create') {
@@ -146,7 +159,7 @@ const Drafts = () => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={(e) => { e.stopPropagation(); handleDelete(post.id); }}
+                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(post); }}
                     className="text-slate-400 hover:text-destructive hover:bg-destructive/10 h-8 w-8 rounded-lg"
                     title="Delete"
                   >
@@ -163,6 +176,21 @@ const Drafts = () => {
         post={selectedPost}
         open={selectedPost !== null}
         onOpenChange={(open) => { if (!open) setSelectedPost(null); }}
+      />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => { if (!open && !deleting) setDeleteTarget(null); }}
+        title="Delete this draft?"
+        description={
+          deleteTarget
+            ? `Draft #${deleteTarget.id} will be removed. This can't be undone.`
+            : undefined
+        }
+        confirmLabel="Delete draft"
+        destructive
+        loading={deleting}
+        onConfirm={confirmDelete}
       />
     </div>
   );

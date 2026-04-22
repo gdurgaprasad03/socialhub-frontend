@@ -61,7 +61,7 @@ const Register = () => {
           </p>
           <ul className="space-y-3 text-sm text-sidebar-foreground">
             {[
-              'Post to Instagram, Facebook, LinkedIn, and Twitter',
+              'Post to Instagram, Facebook, LinkedIn, Twitter & YouTube — with more coming soon',
               'Queue and schedule content in advance',
               'Track performance across every network',
             ].map((item) => (

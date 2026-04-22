@@ -15,10 +15,11 @@ import {
   addDays,
   isValid,
 } from 'date-fns';
-import { usePostStore, type Post, type Platform } from '@/stores/postStore';
+import { usePostStore, resolveMediaUrl, type Post, type Platform } from '@/stores/postStore';
 import { Button } from '@/components/ui/button';
 import PostForm, { type PostMode } from '@/components/PostForm';
 import PostDetails from '@/components/PostDetails';
+import AuthImage from '@/components/AuthImage';
 import {
   ChevronLeft,
   ChevronRight,
@@ -79,6 +80,15 @@ const getPostDate = (p: Post): Date | null => {
   } catch {
     return null;
   }
+};
+
+// First available image (gallery / single / uploaded file) resolved to an
+// absolute URL so the thumbnail loads through the ngrok-aware AuthImage.
+const getFirstImage = (p: Post): string | null => {
+  if (p.images && p.images.length > 0) return resolveMediaUrl(p.images[0]);
+  if (p.image) return resolveMediaUrl(p.image);
+  if (p.media_file) return resolveMediaUrl(p.media_file);
+  return null;
 };
 
 const CalendarPage = () => {
@@ -309,8 +319,9 @@ const CalendarPage = () => {
                 const inMonth = isSameMonth(day, cursor);
                 const isSel = isSameDay(day, selected);
                 const today = isToday(day);
-                const visible = dayPosts.slice(0, 3);
-                const extra = dayPosts.length - visible.length;
+                // Show only one rich preview; everything else collapses into "+N more".
+                const primaryPost = dayPosts[0];
+                const extra = Math.max(0, dayPosts.length - 1);
                 const hasScheduled = dayPosts.some((p) => p.status === 'scheduled' || p.status === 'queued');
                 const hasPublished = dayPosts.some((p) => p.status === 'published' || p.status === 'posted');
                 const hasFailed = dayPosts.some((p) => p.status === 'failed');
@@ -356,9 +367,10 @@ const CalendarPage = () => {
                       </div>
                     )}
 
-                    {/* Desktop/tablet: detailed previews */}
+                    {/* Desktop/tablet: image-only preview + "+N more" */}
                     <div className="hidden sm:block mt-1.5 space-y-1">
-                      {visible.map((p) => {
+                      {primaryPost && (() => {
+                        const p = primaryPost;
                         const isScheduled = p.status === 'scheduled' || p.status === 'queued';
                         const isPublished = p.status === 'published' || p.status === 'posted';
                         const dotClass = isPublished
@@ -368,32 +380,54 @@ const CalendarPage = () => {
                           : p.status === 'failed'
                           ? 'bg-red-500'
                           : 'bg-slate-400';
-                        const time = getPostDate(p);
-                        return (
+                        const thumb = getFirstImage(p);
+                        return thumb ? (
                           <div
-                            key={p.id}
                             onClick={(e) => {
                               e.stopPropagation();
                               setDetailPost(p);
                             }}
-                            className="group/post flex items-center gap-1.5 text-[11px] rounded-md px-1.5 py-0.5 bg-slate-50 hover:bg-white border border-transparent hover:border-blue-200 hover:shadow-sm cursor-pointer transition-all"
+                            className="relative w-full aspect-square rounded-md overflow-hidden cursor-pointer ring-1 ring-slate-200 hover:ring-blue-400 hover:shadow-sm transition-all"
                           >
-                            <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', dotClass)} />
-                            {time && (
-                              <span className="tabular-nums text-slate-500 shrink-0 hidden md:inline">
-                                {format(time, 'HH:mm')}
-                              </span>
+                            <AuthImage
+                              src={thumb}
+                              alt=""
+                              className="w-full h-full object-cover"
+                              wrapperClassName="w-full h-full"
+                            />
+                            <span
+                              className={cn(
+                                'absolute bottom-1 right-1 w-2 h-2 rounded-full ring-2 ring-white',
+                                dotClass
+                              )}
+                            />
+                          </div>
+                        ) : (
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDetailPost(p);
+                            }}
+                            className={cn(
+                              'w-full aspect-square rounded-md cursor-pointer flex items-center justify-center text-white font-semibold text-xs hover:opacity-90 transition-opacity',
+                              'bg-gradient-to-br from-blue-500 to-sky-400'
                             )}
-                            <span className="truncate text-slate-700">
-                              {p.content?.slice(0, 40) || '(no caption)'}
-                            </span>
+                          >
+                            <span className={cn('w-2.5 h-2.5 rounded-full ring-2 ring-white/60', dotClass)} />
                           </div>
                         );
-                      })}
+                      })()}
                       {extra > 0 && (
-                        <p className="text-[10px] text-blue-600 font-medium pl-0.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelected(startOfDay(day));
+                          }}
+                          className="block w-full text-center text-[10px] font-medium text-blue-600 hover:text-blue-700 hover:underline"
+                        >
                           +{extra} more
-                        </p>
+                        </button>
                       )}
                     </div>
                   </button>

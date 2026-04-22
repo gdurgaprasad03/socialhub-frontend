@@ -9,6 +9,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { Platform } from '@/stores/postStore';
 import AccountForm from '@/components/AccountForm';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 interface PlatformMeta {
   label: string;
@@ -88,12 +89,20 @@ const ConnectedAccounts = () => {
     [accountsByPlatform]
   );
 
-  const handleDisconnect = async (id: number, label: string) => {
+  const [disconnectTarget, setDisconnectTarget] = useState<{ id: number; label: string; handle?: string } | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  const confirmDisconnect = async () => {
+    if (!disconnectTarget) return;
+    setDisconnecting(true);
     try {
-      await disconnectAccount(id);
-      toast.success(`${label} disconnected`);
+      await disconnectAccount(disconnectTarget.id);
+      toast.success(`${disconnectTarget.label} disconnected`);
+      setDisconnectTarget(null);
     } catch (error: any) {
       toast.error(error.toString());
+    } finally {
+      setDisconnecting(false);
     }
   };
 
@@ -266,7 +275,14 @@ const ConnectedAccounts = () => {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => account.id && handleDisconnect(account.id, meta.label)}
+                              onClick={() =>
+                                account.id &&
+                                setDisconnectTarget({
+                                  id: account.id,
+                                  label: meta.label,
+                                  handle: account.username || account.platform_username,
+                                })
+                              }
                               className="shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 gap-1"
                               title="Disconnect this account"
                             >
@@ -347,6 +363,21 @@ const ConnectedAccounts = () => {
           )}
         </>
       )}
+
+      <ConfirmDialog
+        open={disconnectTarget !== null}
+        onOpenChange={(open) => { if (!open && !disconnecting) setDisconnectTarget(null); }}
+        title={`Disconnect ${disconnectTarget?.label ?? 'this account'}?`}
+        description={
+          disconnectTarget
+            ? `${disconnectTarget.handle ? `@${disconnectTarget.handle} will be removed.` : 'This account will be removed.'} Scheduled posts targeting it may fail to publish.`
+            : undefined
+        }
+        confirmLabel="Disconnect"
+        destructive
+        loading={disconnecting}
+        onConfirm={confirmDisconnect}
+      />
     </div>
   );
 };

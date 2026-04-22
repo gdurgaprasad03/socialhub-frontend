@@ -28,9 +28,14 @@ export interface Subscription {
   plan: Plan | null;
   plan_name?: string;
   status: 'active' | 'cancelled' | 'canceled' | 'pending' | 'past_due' | 'expired' | 'trialing' | string;
+  is_active?: boolean;
+  is_expired?: boolean;
   current_period_start?: string;
   current_period_end?: string;
-  cancel_at?: string;
+  // Backend uses British spelling `cancelled_at`; keep both for safety.
+  cancelled_at?: string | null;
+  cancel_at?: string | null;
+  created_at?: string;
   credits_remaining?: number;
   credits_used?: number;
   razorpay_subscription_id?: string;
@@ -38,11 +43,21 @@ export interface Subscription {
 }
 
 export interface Usage {
+  // Normalized fields the UI reads — 0 when unlimited (check is_unlimited).
   credits_remaining: number;
   credits_used: number;
   credits_total: number;
+  // Raw backend fields preserved so we can format UI correctly.
+  is_unlimited?: boolean;
+  usage_percentage?: number;
   period_start?: string;
   period_end?: string;
+  // New in GET /usage/:
+  plan_name?: string;
+  max_accounts?: number;
+  days_left?: number;
+  daily_used?: number;
+  daily_limit?: number;
   usage_by_platform?: Record<string, number>;
   [key: string]: any;
 }
@@ -125,8 +140,47 @@ export const useBillingStore = create<BillingState>((set, get) => ({
     set({ isLoadingSubscription: true });
     try {
       const { data } = await axiosInstance.get('/subscription/');
-      // Backend might return null / empty object / subscription object
-      const sub: Subscription | null = data && (data.id || data.plan || data.status) ? data : null;
+      // New shape: { subscription: {...}, usage: {...} }
+      // Old/flat shape: { id, plan, status, ... }
+      const subPayload = data && typeof data === 'object' && 'subscription' in data
+        ? data.subscription
+        : data;
+      const sub: Subscription | null =
+        subPayload && (subPayload.id || subPayload.plan || subPayload.status)
+          ? subPayload
+          : null;
+
+      // If the response embeds usage, populate that state in the same pass so
+      // the dashboard / billing page doesn't need a second network call.
+      const embeddedUsage = data && typeof data === 'object' && 'usage' in data ? data.usage : null;
+      if (embeddedUsage) {
+        const rawRemaining = Number(
+          embeddedUsage.posts_remaining ?? embeddedUsage.credits_remaining ?? 0
+        );
+        const rawUsed = Number(embeddedUsage.posts_used ?? embeddedUsage.credits_used ?? 0);
+        const rawLimit = Number(embeddedUsage.posts_limit ?? embeddedUsage.credits_total ?? 0);
+        const isUnlimited = Boolean(embeddedUsage.is_unlimited) || rawLimit < 0 || rawRemaining < 0;
+
+        set({
+          usage: {
+            // Normalize -1 values to 0 so the UI math is predictable.
+            credits_remaining: isUnlimited ? 0 : Math.max(0, rawRemaining),
+            credits_used: Math.max(0, rawUsed),
+            credits_total: isUnlimited ? 0 : Math.max(0, rawLimit),
+            is_unlimited: isUnlimited,
+            usage_percentage: Number(embeddedUsage.usage_percentage ?? 0),
+            period_start: embeddedUsage.period_start,
+            period_end: embeddedUsage.period_end,
+            usage_by_platform: embeddedUsage.usage_by_platform,
+            plan_name: typeof embeddedUsage.plan_name === 'string' ? embeddedUsage.plan_name : undefined,
+            max_accounts: typeof embeddedUsage.max_accounts === 'number' ? embeddedUsage.max_accounts : undefined,
+            days_left: typeof embeddedUsage.days_left === 'number' ? embeddedUsage.days_left : undefined,
+            daily_used: typeof embeddedUsage.daily_used === 'number' ? embeddedUsage.daily_used : undefined,
+            daily_limit: typeof embeddedUsage.daily_limit === 'number' ? embeddedUsage.daily_limit : undefined,
+          },
+        });
+      }
+
       set({ subscription: sub, isLoadingSubscription: false });
       return sub;
     } catch (error: any) {
@@ -144,14 +198,14 @@ export const useBillingStore = create<BillingState>((set, get) => ({
     set({ isLoadingUsage: true });
     try {
       const { data } = await axiosInstance.get('/usage/');
-      const remaining = Number(
+      const rawRemaining = Number(
         data?.credits_remaining ??
           data?.remaining ??
           data?.posts_remaining ??
           data?.posts_left ??
           0
       );
-      const used = Number(
+      const rawUsed = Number(
         data?.credits_used ??
           data?.used ??
           data?.posts_used ??
@@ -160,18 +214,26 @@ export const useBillingStore = create<BillingState>((set, get) => ({
       );
       const totalFromBackend =
         data?.credits_total ?? data?.total ?? data?.posts_limit ?? data?.posts_per_month;
-      const total =
+      const rawTotal =
         totalFromBackend !== undefined && totalFromBackend !== null
           ? Number(totalFromBackend)
-          : remaining + used;
+          : rawRemaining + rawUsed;
+      const isUnlimited = Boolean(data?.is_unlimited) || rawTotal < 0 || rawRemaining < 0;
+
       const usage: Usage = {
-        credits_remaining: remaining,
-        credits_used: used,
-        credits_total: total,
+        credits_remaining: isUnlimited ? 0 : Math.max(0, rawRemaining),
+        credits_used: Math.max(0, rawUsed),
+        credits_total: isUnlimited ? 0 : Math.max(0, rawTotal),
+        is_unlimited: isUnlimited,
+        usage_percentage: Number(data?.usage_percentage ?? 0),
         period_start: data?.period_start,
         period_end: data?.period_end,
         usage_by_platform: data?.usage_by_platform,
-        ...data,
+        plan_name: typeof data?.plan_name === 'string' ? data.plan_name : undefined,
+        max_accounts: typeof data?.max_accounts === 'number' ? data.max_accounts : undefined,
+        days_left: typeof data?.days_left === 'number' ? data.days_left : undefined,
+        daily_used: typeof data?.daily_used === 'number' ? data.daily_used : undefined,
+        daily_limit: typeof data?.daily_limit === 'number' ? data.daily_limit : undefined,
       };
       set({ usage, isLoadingUsage: false });
       return usage;
