@@ -109,7 +109,7 @@ interface BillingState {
   fetchSubscription: () => Promise<Subscription | null>;
   fetchUsage: () => Promise<Usage | null>;
   fetchAll: () => Promise<void>;
-  subscribe: (planId: number | string) => Promise<SubscribeResponse>;
+  subscribe: (planId: number | string, planSlug: string) => Promise<SubscribeResponse>;
   cancelSubscription: () => Promise<void>;
 }
 
@@ -252,10 +252,10 @@ export const useBillingStore = create<BillingState>((set, get) => ({
     await Promise.allSettled([fetchPlans(), fetchSubscription(), fetchUsage()]);
   },
 
-  subscribe: async (planId) => {
+  subscribe: async (planId, planSlug) => {
     set({ isSubscribing: true });
     try {
-      const { data } = await axiosInstance.post('/subscribe/', { plan_id: planId });
+      const { data } = await axiosInstance.post('/subscribe/', { plan_id: planId, plan_slug: planSlug });
       set({ isSubscribing: false });
       return data as SubscribeResponse;
     } catch (error: any) {

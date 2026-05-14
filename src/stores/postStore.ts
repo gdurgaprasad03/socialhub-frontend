@@ -52,13 +52,18 @@ export interface Post {
   updated_at: string;
 }
 
-// Resolve /media/... paths from the backend into absolute URLs.
-// Keeps the same base URL as axiosInstance so media loads from the same host.
+// Resolve /media/... paths from the backend into URLs the browser can load.
+// In dev the Vite proxy serves /media → backend, so relative paths just work.
+// In production prefix with the backend host.
 const FALLBACK_API_BASE = 'https://pseudopregnant-fatless-ila.ngrok-free.dev/api';
 
 export const resolveMediaUrl = (url: string | null | undefined): string => {
   if (!url) return '';
   if (/^https?:\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) return url;
+  if (import.meta.env.DEV) {
+    // Proxy handles /media and /api paths, return relative
+    return url.startsWith('/') ? url : `/${url}`;
+  }
   const apiBase = import.meta.env.VITE_API_URL || FALLBACK_API_BASE;
   const host = apiBase.replace(/\/api\/?$/, '');
   return `${host}${url.startsWith('/') ? '' : '/'}${url}`;
@@ -74,6 +79,9 @@ export interface SchedulingSlot {
 
 export interface CreatePostInput {
   content: string;
+  // When set, the existing post is UPDATED via PUT /posts/{editingId}/
+  // instead of creating a new one. Used for draft editing.
+  editingId?: number;
   // Account IDs the post should go to
   targetAccounts: number[];
   // Images
@@ -206,13 +214,22 @@ export const usePostStore = create<PostState>((set) => ({
           form.append('content_overrides', JSON.stringify(post.contentOverrides));
         }
 
-        const response = await axiosInstance.post('/posts/', form, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          onUploadProgress: (e) => {
-            const pct = Math.round(((e.loaded || 0) * 100) / (e.total || 1));
-            set({ uploadProgress: pct });
-          },
-        });
+        const url = post.editingId ? `/posts/${post.editingId}/` : '/posts/';
+        const response = post.editingId
+          ? await axiosInstance.put(url, form, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+              onUploadProgress: (e) => {
+                const pct = Math.round(((e.loaded || 0) * 100) / (e.total || 1));
+                set({ uploadProgress: pct });
+              },
+            })
+          : await axiosInstance.post(url, form, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+              onUploadProgress: (e) => {
+                const pct = Math.round(((e.loaded || 0) * 100) / (e.total || 1));
+                set({ uploadProgress: pct });
+              },
+            });
         responseData = response.data;
       } else {
         const payload: any = {
@@ -230,21 +247,36 @@ export const usePostStore = create<PostState>((set) => ({
         if (post.contentOverrides && Object.keys(post.contentOverrides).length > 0) {
           payload.content_overrides = post.contentOverrides;
         }
-        const response = await axiosInstance.post('/posts/', payload);
+        const url = post.editingId ? `/posts/${post.editingId}/` : '/posts/';
+        const response = post.editingId
+          ? await axiosInstance.put(url, payload)
+          : await axiosInstance.post(url, payload);
         responseData = response.data;
       }
 
       set({ uploadProgress: 100 });
 
-      if (post.isDraft) {
+      if (post.editingId) {
+        // Editing an existing post — replace it wherever it lived.
+        set((state) => ({
+          posts: state.posts.map((p) => (p.id === post.editingId ? responseData : p)),
+          scheduledPosts: state.scheduledPosts.map((p) =>
+            p.id === post.editingId ? responseData : p
+          ),
+          isCreating: false,
+        }));
+      } else if (post.isDraft) {
         set((state) => ({ posts: [responseData, ...state.posts], isCreating: false }));
       } else if (post.addToQueue || post.scheduledAt) {
-        set((state) => ({ scheduledPosts: [responseData, ...state.scheduledPosts], isCreating: false }));
+        set((state) => ({
+          scheduledPosts: [responseData, ...state.scheduledPosts],
+          isCreating: false,
+        }));
       } else {
         set((state) => ({ posts: [responseData, ...state.posts], isCreating: false }));
       }
     } catch (error: any) {
-      throw extractError(error, 'Failed to create post');
+      throw extractError(error, post.editingId ? 'Failed to update post' : 'Failed to create post');
     } finally {
       set({ isCreating: false, uploadProgress: 0 });
     }

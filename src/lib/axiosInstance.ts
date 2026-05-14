@@ -1,17 +1,14 @@
 import axios from 'axios';
 import { useAuthStore } from '@/stores/authStore';
 
-// const API_BASE = import.meta.env.VITE_API_URL || 'http://192.168.0.114:9000/api';
-const API_BASE = 'https://pseudopregnant-fatless-ila.ngrok-free.dev/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://pseudopregnant-fatless-ila.ngrok-free.dev/api';
 
 const axiosInstance = axios.create({
   baseURL: API_BASE,
-    headers: { 
+  headers: {
     'Content-Type': 'application/json',
     'ngrok-skip-browser-warning': 'true',
   },
-
-  // withCredentials: true,
 });
 
 axiosInstance.interceptors.request.use((config) => {

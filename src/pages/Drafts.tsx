@@ -3,10 +3,9 @@ import { usePostStore, type Platform, type Post } from '@/stores/postStore';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import {
-  Trash2, Plus, Loader2, FileText, Twitter, Linkedin, Facebook, Instagram, Youtube, Eye, Calendar,
+  Trash2, Plus, Loader2, FileText, Twitter, Linkedin, Facebook, Instagram, Youtube, Pencil, Calendar,
 } from 'lucide-react';
 import PostForm from '@/components/PostForm';
-import PostDetails from '@/components/PostDetails';
 import ConfirmDialog from '@/components/ConfirmDialog';
 
 const PLATFORM_ICONS: Record<Platform, React.ElementType> = {
@@ -15,12 +14,17 @@ const PLATFORM_ICONS: Record<Platform, React.ElementType> = {
 
 const Drafts = () => {
   const [view, setView] = useState<'list' | 'create'>('list');
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [editingDraft, setEditingDraft] = useState<Post | null>(null);
   const { posts, fetchPosts, deletePost, isLoading } = usePostStore();
 
   useEffect(() => { fetchPosts().catch(() => {}); }, [fetchPosts]);
 
-  const drafts = posts.filter(p => p.status === 'draft' || (p as any).is_draft);
+  const drafts = posts.filter(p => p.status === 'draft' || (p as unknown as { is_draft?: boolean }).is_draft);
+
+  const editDraft = (post: Post) => {
+    setEditingDraft(post);
+    setView('create');
+  };
 
   const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -32,8 +36,8 @@ const Drafts = () => {
       await deletePost(deleteTarget.id);
       toast.success('Draft deleted');
       setDeleteTarget(null);
-    } catch (err: any) {
-      toast.error(err?.toString?.() || 'Failed to delete');
+    } catch (err) {
+      toast.error(String(err ?? 'Failed to delete'));
     } finally {
       setDeleting(false);
     }
@@ -44,8 +48,16 @@ const Drafts = () => {
       <div className="max-w-4xl mx-auto">
         <PostForm
           mode="draft"
-          onSuccess={() => { fetchPosts().catch(() => {}); setView('list'); }}
-          onCancel={() => setView('list')}
+          editingPost={editingDraft}
+          onSuccess={() => {
+            fetchPosts().catch(() => {});
+            setEditingDraft(null);
+            setView('list');
+          }}
+          onCancel={() => {
+            setEditingDraft(null);
+            setView('list');
+          }}
         />
       </div>
     );
@@ -108,7 +120,7 @@ const Drafts = () => {
             return (
               <div
                 key={post.id}
-                onClick={() => setSelectedPost(post)}
+                onClick={() => editDraft(post)}
                 className="group bg-white rounded-2xl border border-slate-200/70 p-4 shadow-sm flex items-start gap-3 cursor-pointer hover:shadow-xl hover:shadow-blue-500/10 hover:-translate-y-0.5 transition-all"
               >
                 <div className="flex-1 min-w-0">
@@ -119,7 +131,7 @@ const Drafts = () => {
                         …{' '}
                         <button
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); setSelectedPost(post); }}
+                          onClick={(e) => { e.stopPropagation(); editDraft(post); }}
                           className="text-blue-600 hover:text-blue-700 hover:underline text-xs font-medium"
                         >
                           see more
@@ -150,11 +162,11 @@ const Drafts = () => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={(e) => { e.stopPropagation(); setSelectedPost(post); }}
+                    onClick={(e) => { e.stopPropagation(); editDraft(post); }}
                     className="text-slate-400 hover:text-blue-600 hover:bg-blue-50 h-8 w-8 rounded-lg"
-                    title="View details"
+                    title="Edit draft"
                   >
-                    <Eye className="w-4 h-4" />
+                    <Pencil className="w-4 h-4" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -171,12 +183,6 @@ const Drafts = () => {
           })}
         </div>
       )}
-
-      <PostDetails
-        post={selectedPost}
-        open={selectedPost !== null}
-        onOpenChange={(open) => { if (!open) setSelectedPost(null); }}
-      />
 
       <ConfirmDialog
         open={deleteTarget !== null}

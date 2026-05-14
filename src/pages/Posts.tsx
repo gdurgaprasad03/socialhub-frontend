@@ -28,13 +28,16 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
+  FileText,
+  Pencil,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import PostForm from '@/components/PostForm';
 import PostDetails from '@/components/PostDetails';
 import AuthImage from '@/components/AuthImage';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import ViewToggle, { useViewMode } from '@/components/ViewToggle';
+import ViewToggle from '@/components/ViewToggle';
+import { useViewMode } from '@/hooks/useViewMode';
 
 /* ─────────────────────────── Platform metadata ─────────────────────────── */
 
@@ -76,7 +79,7 @@ const PLATFORM_META: Record<
 
 const PLATFORMS: Platform[] = ['twitter', 'linkedin', 'facebook', 'instagram', 'youtube'];
 
-type TabKey = 'all' | Platform;
+type TabKey = 'all' | 'drafts' | Platform;
 
 const PUBLISHED_STATUSES: PostStatus[] = [
   'published',
@@ -86,6 +89,10 @@ const PUBLISHED_STATUSES: PostStatus[] = [
   'pending',
   'processing',
 ];
+
+// Drafts can either carry `status === 'draft'` or a legacy `is_draft` flag.
+const isDraftPost = (p: Post): boolean =>
+  p.status === 'draft' || Boolean((p as unknown as { is_draft?: boolean }).is_draft);
 
 /* ─────────────────────────── Media helpers ─────────────────────────── */
 
@@ -110,6 +117,7 @@ const countOnPlatform = (posts: Post[], platform: Platform) =>
 const Posts = () => {
   const [view, setView] = useState<'list' | 'create'>('list');
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [editingDraft, setEditingDraft] = useState<Post | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -138,8 +146,11 @@ const Posts = () => {
     }
   };
 
-  const visiblePosts = useMemo(
-    () => posts.filter((p) => PUBLISHED_STATUSES.includes(p.status)),
+  // Drafts are surfaced alongside published posts in the "All" and platform
+  // tabs so users can jump straight into editing without switching tabs.
+  const drafts = useMemo(() => posts.filter(isDraftPost), [posts]);
+  const allVisible = useMemo(
+    () => posts.filter((p) => PUBLISHED_STATUSES.includes(p.status) || isDraftPost(p)),
     [posts]
   );
 
@@ -147,33 +158,54 @@ const Posts = () => {
   const visiblePlatforms = useMemo(() => {
     return PLATFORMS.filter((p) => {
       const hasAccount = accounts.some((a) => a.platform === p);
-      const hasPost = visiblePosts.some((post) => post.platforms.includes(p));
+      const hasPost = allVisible.some((post) => post.platforms.includes(p));
       return hasAccount || hasPost;
     });
-  }, [accounts, visiblePosts]);
+  }, [accounts, allVisible]);
 
   const filteredPosts = useMemo(() => {
-    if (activeTab === 'all') return visiblePosts;
-    return visiblePosts.filter((p) => p.platforms.includes(activeTab));
-  }, [visiblePosts, activeTab]);
+    if (activeTab === 'all') return allVisible;
+    if (activeTab === 'drafts') return drafts;
+    return allVisible.filter((p) => p.platforms.includes(activeTab));
+  }, [allVisible, drafts, activeTab]);
+
+  // Click router — drafts open the PostForm in edit mode; everything else
+  // opens the read-only details dialog.
+  const handlePostClick = (post: Post) => {
+    if (isDraftPost(post)) {
+      setEditingDraft(post);
+      setView('create');
+    } else {
+      setSelectedPost(post);
+    }
+  };
 
   if (view === 'create') {
     return (
       <div className="max-w-4xl mx-auto">
         <PostForm
-          mode="post"
+          mode={editingDraft ? 'draft' : 'post'}
+          editingPost={editingDraft}
           onSuccess={() => {
             fetchPosts().catch(() => {});
+            setEditingDraft(null);
             setView('list');
           }}
-          onCancel={() => setView('list')}
+          onCancel={() => {
+            setEditingDraft(null);
+            setView('list');
+          }}
         />
       </div>
     );
   }
 
   const activeLabel =
-    activeTab === 'all' ? 'posts' : `${PLATFORM_META[activeTab].label} posts`;
+    activeTab === 'all'
+      ? 'posts'
+      : activeTab === 'drafts'
+      ? 'drafts'
+      : `${PLATFORM_META[activeTab].label} posts`;
 
   return (
     <div className="max-w-5xl mx-auto animate-slide-up space-y-4">
@@ -215,9 +247,19 @@ const Posts = () => {
             onClick={() => setActiveTab('all')}
             icon={Grid3x3}
             label="All"
-            count={visiblePosts.length}
+            count={allVisible.length}
             underline="from-blue-600 to-blue-400"
           />
+          {drafts.length > 0 && (
+            <TabButton
+              active={activeTab === 'drafts'}
+              onClick={() => setActiveTab('drafts')}
+              icon={FileText}
+              label="Drafts"
+              count={drafts.length}
+              underline="from-slate-700 to-slate-500"
+            />
+          )}
           {visiblePlatforms.map((platform) => {
             const meta = PLATFORM_META[platform];
             return (
@@ -227,7 +269,7 @@ const Posts = () => {
                 onClick={() => setActiveTab(platform)}
                 icon={meta.icon}
                 label={meta.label}
-                count={countOnPlatform(visiblePosts, platform)}
+                count={countOnPlatform(allVisible, platform)}
                 underline={meta.underline}
               />
             );
@@ -259,6 +301,8 @@ const Posts = () => {
               <p className="text-sm text-slate-500 mb-4">
                 {activeTab === 'all'
                   ? 'Create your first post to get started.'
+                  : activeTab === 'drafts'
+                  ? 'Save a draft to keep working on it later.'
                   : `Post something to ${PLATFORM_META[activeTab].label} to see it here.`}
               </p>
               <Button
@@ -276,8 +320,8 @@ const Posts = () => {
               <PostTile
                 key={post.id}
                 post={post}
-                activePlatform={activeTab === 'all' ? null : activeTab}
-                onClick={() => setSelectedPost(post)}
+                activePlatform={(activeTab === 'all' || activeTab === 'drafts') ? null : activeTab}
+                onClick={() => handlePostClick(post)}
                 onDelete={() => requestDelete(post)}
                 animationDelay={index * 25}
               />
@@ -289,8 +333,8 @@ const Posts = () => {
               <PostListRow
                 key={post.id}
                 post={post}
-                activePlatform={activeTab === 'all' ? null : activeTab}
-                onClick={() => setSelectedPost(post)}
+                activePlatform={(activeTab === 'all' || activeTab === 'drafts') ? null : activeTab}
+                onClick={() => handlePostClick(post)}
                 onDelete={() => requestDelete(post)}
               />
             ))}
@@ -301,8 +345,8 @@ const Posts = () => {
               <PostDetailCard
                 key={post.id}
                 post={post}
-                activePlatform={activeTab === 'all' ? null : activeTab}
-                onClick={() => setSelectedPost(post)}
+                activePlatform={(activeTab === 'all' || activeTab === 'drafts') ? null : activeTab}
+                onClick={() => handlePostClick(post)}
                 onDelete={() => requestDelete(post)}
               />
             ))}
@@ -394,6 +438,7 @@ const PostTile = ({ post, activePlatform, onClick, onDelete, animationDelay }: P
   const video = getVideoSrc(post);
   const imageCount = (post.images?.length ?? 0) + (post.image ? 1 : 0);
   const isCarousel = imageCount > 1;
+  const draft = isDraftPost(post);
 
   // Account usernames — prefer the new target_account_details field, fall back
   // to platform_results entries (which sometimes carry display_name + platform).
@@ -439,7 +484,10 @@ const PostTile = ({ post, activePlatform, onClick, onDelete, animationDelay }: P
   return (
     <div
       onClick={onClick}
-      className="group relative aspect-square bg-slate-100 overflow-hidden cursor-pointer animate-slide-up"
+      className={cn(
+        'group relative aspect-square bg-slate-100 overflow-hidden cursor-pointer animate-slide-up',
+        draft && 'outline outline-2 outline-dashed outline-slate-400/70 -outline-offset-4'
+      )}
       style={{ animationDelay: `${animationDelay}ms` }}
     >
       {/* Media / fallback */}
@@ -466,13 +514,20 @@ const PostTile = ({ post, activePlatform, onClick, onDelete, animationDelay }: P
         </div>
       )}
 
-      {/* Top-left status dot */}
-      <div
-        className={cn(
-          'absolute top-1.5 left-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-white/80 shadow-sm',
-          tileStatusClass
-        )}
-      />
+      {/* Top-left status — a Draft pill for drafts, a colored dot for everything else */}
+      {draft ? (
+        <div className="absolute top-1.5 left-1.5 inline-flex items-center gap-1 bg-white/95 backdrop-blur text-slate-700 text-[9px] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded-md shadow-sm border border-slate-200">
+          <FileText className="w-2.5 h-2.5" />
+          Draft
+        </div>
+      ) : (
+        <div
+          className={cn(
+            'absolute top-1.5 left-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-white/80 shadow-sm',
+            tileStatusClass
+          )}
+        />
+      )}
 
       {/* Top-right: carousel / video indicator */}
       <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
@@ -570,6 +625,9 @@ const PostTile = ({ post, activePlatform, onClick, onDelete, animationDelay }: P
 /* ─────────────────────────── Status helpers (shared) ─────────────────────────── */
 
 const statusPillFor = (post: Post) => {
+  if (isDraftPost(post)) {
+    return { label: 'Draft', cls: 'text-slate-700 bg-slate-100 border border-slate-300', Icon: FileText };
+  }
   if (post.status === 'published' || post.status === 'posted') {
     return { label: 'Published', cls: 'text-emerald-700 bg-emerald-50 border border-emerald-200', Icon: CheckCircle2 };
   }
@@ -606,6 +664,7 @@ const PostListRow = ({ post, onClick, onDelete }: RowProps) => {
   const StatusIcon = status.Icon;
   const handle = firstHandle(post);
   const time = post.published_at || post.created_at;
+  const draft = isDraftPost(post);
 
   return (
     <div
@@ -659,9 +718,9 @@ const PostListRow = ({ post, onClick, onDelete }: RowProps) => {
           size="icon"
           className="h-8 w-8 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50"
           onClick={(e) => { e.stopPropagation(); onClick(); }}
-          title="View"
+          title={draft ? 'Edit draft' : 'View'}
         >
-          <Eye className="w-4 h-4" />
+          {draft ? <Pencil className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </Button>
         <Button
           variant="ghost"
@@ -686,6 +745,7 @@ const PostDetailCard = ({ post, activePlatform, onClick, onDelete }: RowProps) =
   const status = statusPillFor(post);
   const StatusIcon = status.Icon;
   const time = post.published_at || post.created_at;
+  const draft = isDraftPost(post);
 
   // Per-platform results we care about for the current tab (or all).
   const resultEntries = Object.entries(post.platform_results ?? {})
@@ -818,11 +878,16 @@ const PostDetailCard = ({ post, activePlatform, onClick, onDelete }: RowProps) =
           <Button
             variant="outline"
             size="sm"
-            className="rounded-full h-8 border-slate-300"
+            className={cn(
+              'rounded-full h-8',
+              draft
+                ? 'border-blue-300 text-blue-700 hover:bg-blue-50'
+                : 'border-slate-300'
+            )}
             onClick={(e) => { e.stopPropagation(); onClick(); }}
           >
-            <Eye className="w-3.5 h-3.5" />
-            View details
+            {draft ? <Pencil className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            {draft ? 'Edit draft' : 'View details'}
           </Button>
           <Button
             variant="ghost"

@@ -94,7 +94,6 @@ const normalizePlan = (p: Plan) => {
     unlimitedAccounts,
     features: [...autoFeatures, ...slugExtras, ...backendFeatures],
     isFree: Boolean(p.is_free) || slug === 'free' || Number(p.price ?? 0) === 0,
-    // Auto-mark Pro as the popular plan when backend doesn't specify.
     isPopular: Boolean(p.is_popular) || slug === 'pro',
   };
 };
@@ -210,7 +209,7 @@ const Billing = () => {
       // Free plan — call subscribe directly, no Razorpay
       setProcessingPlanId(plan.id);
       try {
-        await subscribe(plan.id);
+        await subscribe(plan.id, plan.slug);
         toast.success(`You're on the ${plan.name} plan!`);
         await fetchSubscription();
         await fetchUsage();
@@ -224,7 +223,7 @@ const Billing = () => {
 
     setProcessingPlanId(plan.id);
     try {
-      const res = await subscribe(plan.id);
+      const res = await subscribe(plan.id, plan.slug);
 
       const key = res.razorpay_key_id || res.key_id || res.key;
       const subscriptionId = res.razorpay_subscription_id || res.subscription_id;

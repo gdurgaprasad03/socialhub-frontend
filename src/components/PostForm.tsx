@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { usePostStore, type Platform, type InstagramPostType } from '@/stores/postStore';
+import { usePostStore, resolveMediaUrl, type Platform, type InstagramPostType, type Post } from '@/stores/postStore';
 import { useAccountStore } from '@/stores/accountStore';
 import { useBillingStore } from '@/stores/billingStore';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import {
   Loader2, Image, Twitter, Linkedin, Facebook, Instagram, Youtube,
   AlertCircle, CheckCircle2, ArrowLeft, Upload, X, Plus, Video,
-  ChevronDown, Zap, Sparkles,
+  ChevronDown, Zap, Sparkles, FileText, Send,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -45,6 +45,8 @@ type MediaTab = 'images' | 'video';
 
 interface PostFormProps {
   mode?: PostMode;
+  /** When present, the form opens pre-filled and submits as an UPDATE. */
+  editingPost?: Post | null;
   onSuccess?: () => void;
   onCancel?: () => void;
 }
@@ -54,7 +56,8 @@ const ACCEPTED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/x-msvideo',
   'video/x-matroska', 'video/webm', 'video/x-m4v'];
 const MAX_VIDEO_SIZE_GB = 5;
 
-const PostForm = ({ mode = 'post', onSuccess, onCancel }: PostFormProps) => {
+const PostForm = ({ mode = 'post', editingPost, onSuccess, onCancel }: PostFormProps) => {
+  const isEditing = Boolean(editingPost);
   const [content, setContent] = useState('');
   const [selectedAccountIds, setSelectedAccountIds] = useState<number[]>([]);
 
@@ -90,6 +93,66 @@ const PostForm = ({ mode = 'post', onSuccess, onCancel }: PostFormProps) => {
     fetchAccounts().catch(() => {});
     fetchUsage().catch(() => {});
   }, [fetchAccounts, fetchUsage]);
+
+  // ── Pre-fill when editing an existing post (draft, scheduled, etc.) ──
+  useEffect(() => {
+    if (!editingPost) return;
+    setContent(editingPost.content || '');
+
+    // target_accounts is the source of truth for which accounts to pre-select
+    if (Array.isArray(editingPost.target_accounts)) {
+      setSelectedAccountIds(editingPost.target_accounts);
+    } else if (editingPost.target_account_details) {
+      setSelectedAccountIds(editingPost.target_account_details.map((a) => a.id));
+    }
+
+    // Images — resolve relative backend paths to absolute URLs so preview works
+    const rawImages: string[] = [];
+    if (editingPost.images && editingPost.images.length > 0) rawImages.push(...editingPost.images);
+    else if (editingPost.image) rawImages.push(editingPost.image);
+    if (editingPost.media_file) rawImages.push(editingPost.media_file);
+    if (rawImages.length > 0) {
+      setImageUrls(rawImages.map((u) => resolveMediaUrl(u)));
+      setImageTab('url');
+      setMediaTab('images');
+    }
+
+    // Video
+    if (editingPost.video) {
+      setVideoUrl(resolveMediaUrl(editingPost.video));
+      setVideoTab('url');
+      setMediaTab('video');
+    } else if (editingPost.video_file) {
+      setVideoUrl(resolveMediaUrl(editingPost.video_file));
+      setVideoTab('url');
+      setMediaTab('video');
+    }
+
+    // Scheduled time — convert ISO to the "YYYY-MM-DDTHH:mm" datetime-local format
+    if (editingPost.scheduled_time) {
+      const d = new Date(editingPost.scheduled_time);
+      if (!Number.isNaN(d.getTime())) {
+        const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+        setScheduledAt(local.toISOString().slice(0, 16));
+      }
+    }
+
+    // Per-account content overrides
+    if (editingPost.content_overrides && Object.keys(editingPost.content_overrides).length > 0) {
+      setOverrides(editingPost.content_overrides);
+      setUseOverrides(true);
+    }
+
+    // Instagram post type — pick the first one we find in platform_options
+    if (editingPost.platform_options) {
+      const ig = Object.values(editingPost.platform_options).find((opts) => opts?.post_type);
+      const pt = ig?.post_type;
+      if (pt === 'feed' || pt === 'reel' || pt === 'story') {
+        setInstagramPostType(pt);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingPost?.id]);
 
   const selectedAccounts = useMemo(
     () => accounts.filter((a) => a.id != null && selectedAccountIds.includes(a.id!)),
@@ -235,15 +298,48 @@ const PostForm = ({ mode = 'post', onSuccess, onCancel }: PostFormProps) => {
 
   const isUploading = isCreating && (videoFile != null || imageFiles.length > 0) && uploadProgress < 100;
 
-  const buttonLabel: Record<PostMode, string> = {
-    post: 'Post Now', queue: 'Add to Queue', schedule: 'Schedule Post', draft: 'Save as Draft',
-  };
-  const titleLabel: Record<PostMode, string> = {
-    post: 'Create Post', queue: 'Add to Queue', schedule: 'Schedule Post', draft: 'Save Draft',
-  };
+  const buttonLabel: Record<PostMode, string> = isEditing
+    ? {
+        post: 'Publish Update',
+        queue: 'Update Queue Entry',
+        schedule: 'Update Schedule',
+        draft: 'Save Draft',
+      }
+    : {
+        post: 'Post Now',
+        queue: 'Add to Queue',
+        schedule: 'Schedule Post',
+        draft: 'Save as Draft',
+      };
+  const titleLabel: Record<PostMode, string> = isEditing
+    ? {
+        post: 'Edit Post',
+        queue: 'Edit Queued Post',
+        schedule: 'Edit Scheduled Post',
+        draft: 'Edit Draft',
+      }
+    : {
+        post: 'Create Post',
+        queue: 'Add to Queue',
+        schedule: 'Schedule Post',
+        draft: 'Save Draft',
+      };
 
-  const handleSubmit = async () => {
-    if (!canSubmit) return;
+  const handleSubmit = async (override?: PostMode) => {
+    const effectiveMode: PostMode = override ?? mode;
+
+    // Minimal validation that isn't mode-specific.
+    const baseValid =
+      (content.trim() || hasMedia) &&
+      selectedAccountIds.length > 0 &&
+      Object.keys(validationErrors).length === 0 &&
+      !insufficientCredits;
+    if (!baseValid) return;
+    // Schedule requires a date regardless of where the click came from.
+    if (effectiveMode === 'schedule' && !scheduledAt) {
+      toast.error('Pick a scheduled time first.');
+      return;
+    }
 
     // Validate video URL is direct link
     if (hasVideo && videoUrl.trim()) {
@@ -287,19 +383,28 @@ const PostForm = ({ mode = 'post', onSuccess, onCancel }: PostFormProps) => {
         videoFile: videoFile || undefined,
         videoUrl: videoUrl.trim() || undefined,
         platformOptions: Object.keys(platformOptions).length > 0 ? platformOptions : undefined,
-        scheduledAt: mode === 'schedule' && scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
-        isDraft: mode === 'draft',
-        addToQueue: mode === 'queue',
+        scheduledAt:
+          effectiveMode === 'schedule' && scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
+        isDraft: effectiveMode === 'draft',
+        addToQueue: effectiveMode === 'queue',
         contentOverrides: Object.keys(contentOverrides).length > 0 ? contentOverrides : undefined,
+        editingId: editingPost?.id,
       });
 
-      const successMsg: Record<PostMode, string> = {
-        post: hasVideo ? 'Video uploading — post will publish once processed.' : 'Post published!',
-        queue: 'Added to queue!',
-        schedule: 'Post scheduled!',
-        draft: 'Draft saved!',
-      };
-      toast.success(successMsg[mode]);
+      const successMsg: Record<PostMode, string> = isEditing
+        ? {
+            post: hasVideo ? 'Video uploading — post will publish once processed.' : 'Draft published!',
+            queue: 'Queue entry updated!',
+            schedule: 'Schedule updated!',
+            draft: 'Draft saved!',
+          }
+        : {
+            post: hasVideo ? 'Video uploading — post will publish once processed.' : 'Post published!',
+            queue: 'Added to queue!',
+            schedule: 'Post scheduled!',
+            draft: 'Draft saved!',
+          };
+      toast.success(successMsg[effectiveMode]);
 
       setContent(''); setSelectedAccountIds([]);
       setImageUrls(['']); setImageFiles([]); setFilePreviews([]);
@@ -308,8 +413,8 @@ const PostForm = ({ mode = 'post', onSuccess, onCancel }: PostFormProps) => {
       setInstagramPostType('feed');
       fetchUsage().catch(() => {});
       onSuccess?.();
-    } catch (error: any) {
-      toast.error(error.toString());
+    } catch (error) {
+      toast.error(String(error ?? 'Something went wrong'));
     }
   };
 
@@ -736,16 +841,44 @@ const PostForm = ({ mode = 'post', onSuccess, onCancel }: PostFormProps) => {
             </div>
           )}
 
-          <Button
-            onClick={handleSubmit}
-            disabled={!canSubmit || isCreating}
-            className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-blue-400 hover:opacity-95 text-white rounded-full shadow-lg shadow-blue-500/30"
-          >
-            {isCreating
-              ? (<><Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  {isUploading ? `Uploading ${uploadProgress}%` : 'Processing…'}</>)
-              : buttonLabel[mode]}
-          </Button>
+          {/* Submit actions — when editing a draft, we expose both
+              "Save draft" and "Publish now" so users can finish and ship
+              without leaving the form. */}
+          {isEditing && mode === 'draft' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Button
+                onClick={() => handleSubmit('draft')}
+                disabled={!canSubmit || isCreating}
+                variant="outline"
+                className="h-12 text-sm font-semibold rounded-full border-slate-300"
+              >
+                {isCreating
+                  ? (<><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>)
+                  : (<><FileText className="w-4 h-4" /> Save draft</>)}
+              </Button>
+              <Button
+                onClick={() => handleSubmit('post')}
+                disabled={!canSubmit || isCreating}
+                className="h-12 text-sm font-semibold rounded-full bg-gradient-to-r from-blue-600 to-blue-400 hover:opacity-95 text-white shadow-lg shadow-blue-500/30"
+              >
+                {isCreating
+                  ? (<><Loader2 className="w-4 h-4 animate-spin" />
+                      {isUploading ? `Uploading ${uploadProgress}%` : 'Publishing…'}</>)
+                  : (<><Send className="w-4 h-4" /> Publish now</>)}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              onClick={() => handleSubmit()}
+              disabled={!canSubmit || isCreating}
+              className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-blue-400 hover:opacity-95 text-white rounded-full shadow-lg shadow-blue-500/30"
+            >
+              {isCreating
+                ? (<><Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    {isUploading ? `Uploading ${uploadProgress}%` : 'Processing…'}</>)
+                : buttonLabel[mode]}
+            </Button>
+          )}
         </div>
 
         {/* Preview */}

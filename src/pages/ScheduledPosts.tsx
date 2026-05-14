@@ -12,7 +12,8 @@ import { cn } from '@/lib/utils';
 import PostForm, { type PostMode } from '@/components/PostForm';
 import PostDetails from '@/components/PostDetails';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import ViewToggle, { useViewMode } from '@/components/ViewToggle';
+import ViewToggle from '@/components/ViewToggle';
+import { useViewMode } from '@/hooks/useViewMode';
 import AuthImage from '@/components/AuthImage';
 
 const STATUS_CONFIG: Record<PostStatus, { label: string; icon: React.ElementType; className: string }> = {
@@ -76,8 +77,8 @@ const ScheduledPosts = () => {
       await deleteScheduledPost(deleteTarget.id);
       toast.success('Scheduled post deleted');
       setDeleteTarget(null);
-    } catch (err: any) {
-      toast.error(err?.toString?.() || 'Failed to delete');
+    } catch (err) {
+      toast.error(String(err ?? 'Failed to delete'));
     } finally {
       setDeleting(false);
     }
