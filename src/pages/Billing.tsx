@@ -46,13 +46,15 @@ const normalizeInterval = (raw: string): string => {
 // render-ready object.
 const normalizePlan = (p: Plan) => {
   const slug = (p.slug || '').toString().toLowerCase();
-  const postsPerMonth =
-    p.posts_per_month !== undefined && p.posts_per_month !== null
+  const postsPerPackage =
+    p.posts_limit !== undefined && p.posts_limit !== null
+      ? Number(p.posts_limit)
+      : p.posts_per_month !== undefined && p.posts_per_month !== null
       ? Number(p.posts_per_month)
       : Number(p.credits ?? p.credits_per_cycle ?? 0);
   const maxAccounts =
     p.max_accounts !== undefined && p.max_accounts !== null ? Number(p.max_accounts) : null;
-  const unlimitedPosts = postsPerMonth < 0;
+  const unlimitedPosts = postsPerPackage < 0;
   const unlimitedAccounts = typeof maxAccounts === 'number' && maxAccounts < 0;
 
   // Build the feature list: auto-derived capabilities + any extra features
@@ -60,8 +62,8 @@ const normalizePlan = (p: Plan) => {
   const autoFeatures: string[] = [];
   autoFeatures.push(
     unlimitedPosts
-      ? 'Unlimited posts per month'
-      : `${postsPerMonth.toLocaleString()} posts per month`
+      ? 'Unlimited posts per package'
+      : `${postsPerPackage.toLocaleString()} posts per package`
   );
   if (typeof maxAccounts === 'number') {
     autoFeatures.push(
@@ -88,7 +90,7 @@ const normalizePlan = (p: Plan) => {
     price: Number(p.price ?? 0),
     currency: p.currency || 'INR',
     interval: normalizeInterval(p.interval || 'month'),
-    postsPerMonth,
+    postsPerPackage,
     maxAccounts,
     unlimitedPosts,
     unlimitedAccounts,
@@ -240,7 +242,7 @@ const Billing = () => {
         name: res.name || 'Social Media Hub',
         description:
           res.description ||
-          `${plan.name} · ${plan.unlimitedPosts ? 'Unlimited' : plan.postsPerMonth} posts / ${plan.interval}`,
+          `${plan.name} · ${plan.unlimitedPosts ? 'Unlimited' : plan.postsPerPackage} posts per package`,
         subscription_id: subscriptionId,
         order_id: orderId,
         amount: res.amount,
@@ -299,7 +301,7 @@ const Billing = () => {
               A plan for every scale.
             </h2>
             <p className="mt-1 text-white/80 text-sm">
-              Posts refresh every billing cycle. Upgrade anytime.
+              Posts refresh every package cycle. Upgrade anytime.
             </p>
           </div>
 
@@ -309,7 +311,7 @@ const Billing = () => {
               <div className="flex items-center gap-2">
                 <Gauge className="w-3.5 h-3.5" />
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-white/80">
-                  Posts this cycle
+                  Posts this package
                 </p>
               </div>
               {daysLeft !== null && (
@@ -450,7 +452,7 @@ const Billing = () => {
               <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500 flex items-center gap-1.5">
                   <Gauge className="w-3 h-3" />
-                  Usage this period
+                  Usage this package
                 </p>
                 {usage?.period_start && (
                   <p className="text-[11px] text-slate-400">
@@ -569,7 +571,7 @@ const Billing = () => {
         <div className="flex items-center gap-3 text-sm text-orange-800 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
           <TrendingUp className="w-4 h-4 shrink-0" />
           <p className="flex-1">
-            You've used <span className="font-semibold tabular-nums">{usagePct}%</span> of your monthly posts. Upgrade to keep shipping.
+            You've used <span className="font-semibold tabular-nums">{usagePct}%</span> of your package posts. Upgrade to keep shipping.
           </p>
         </div>
       )}
@@ -669,7 +671,7 @@ const Billing = () => {
                           )}
                           {plan.unlimitedPosts
                             ? 'Unlimited posts'
-                            : `${plan.postsPerMonth.toLocaleString()} posts / ${plan.interval}`}
+                            : `${plan.postsPerPackage.toLocaleString()} posts per package`}
                         </span>
                         {typeof plan.maxAccounts === 'number' && (
                           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full">
