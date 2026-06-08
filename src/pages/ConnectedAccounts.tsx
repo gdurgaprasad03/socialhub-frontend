@@ -67,6 +67,7 @@ const PLATFORM_ORDER: Platform[] = ['twitter', 'linkedin', 'facebook', 'instagra
 
 const ConnectedAccounts = () => {
   const [view, setView] = useState<'list' | 'add'>('list');
+  const [selectedPlatform, setSelectedPlatform] = useState<Platform | null>(null);
   const { accounts, disconnectAccount, isConnecting, startConnection, fetchAccounts, isLoading } = useAccountStore();
 
   useEffect(() => { fetchAccounts().catch(() => { }); }, [fetchAccounts]);
@@ -106,9 +107,9 @@ const ConnectedAccounts = () => {
     }
   };
 
-  const handleConnect = async (platform: Platform) => {
+  const handleConnect = async (platform: Platform, force = false) => {
     try {
-      await startConnection(platform);
+      await startConnection(platform, { force });
     } catch (error: any) {
       toast.error(error.toString?.() || 'Failed to start connection');
     }
@@ -118,8 +119,15 @@ const ConnectedAccounts = () => {
     return (
       <div className="max-w-3xl mx-auto">
         <AccountForm
-          onSuccess={() => setView('list')}
-          onCancel={() => setView('list')}
+          initialPlatform={selectedPlatform}
+          onSuccess={() => {
+            setView('list');
+            setSelectedPlatform(null);
+          }}
+          onCancel={() => {
+            setView('list');
+            setSelectedPlatform(null);
+          }}
         />
       </div>
     );
@@ -220,7 +228,7 @@ const ConnectedAccounts = () => {
                           size="sm"
                           variant="outline"
                           disabled={connecting}
-                          onClick={() => handleConnect(platform)}
+                          onClick={() => handleConnect(platform, true)}
                           className="gap-1.5 shrink-0 bg-white/80 backdrop-blur hover:bg-gray-200 hover:text-gray-800"
                           title={`Add another ${meta.label} account`}
                         >

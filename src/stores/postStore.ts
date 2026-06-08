@@ -55,7 +55,8 @@ export interface Post {
 // Resolve /media/... paths from the backend into URLs the browser can load.
 // In dev the Vite proxy serves /media → backend, so relative paths just work.
 // In production prefix with the backend host.
-const FALLBACK_API_BASE = 'https://pseudopregnant-fatless-ila.ngrok-free.dev/api';
+// const FALLBACK_API_BASE = 'https://pseudopregnant-fatless-ila.ngrok-free.dev/api/api';
+const FALLBACK_API_BASE = 'https://nxsocial.nxsys.in/api';
 
 export const resolveMediaUrl = (url: string | null | undefined): string => {
   if (!url) return '';
@@ -217,19 +218,19 @@ export const usePostStore = create<PostState>((set) => ({
         const url = post.editingId ? `/posts/${post.editingId}/` : '/posts/';
         const response = post.editingId
           ? await axiosInstance.put(url, form, {
-              headers: { 'Content-Type': 'multipart/form-data' },
-              onUploadProgress: (e) => {
-                const pct = Math.round(((e.loaded || 0) * 100) / (e.total || 1));
-                set({ uploadProgress: pct });
-              },
-            })
+            headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: (e) => {
+              const pct = Math.round(((e.loaded || 0) * 100) / (e.total || 1));
+              set({ uploadProgress: pct });
+            },
+          })
           : await axiosInstance.post(url, form, {
-              headers: { 'Content-Type': 'multipart/form-data' },
-              onUploadProgress: (e) => {
-                const pct = Math.round(((e.loaded || 0) * 100) / (e.total || 1));
-                set({ uploadProgress: pct });
-              },
-            });
+            headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: (e) => {
+              const pct = Math.round(((e.loaded || 0) * 100) / (e.total || 1));
+              set({ uploadProgress: pct });
+            },
+          });
         responseData = response.data;
       } else {
         const payload: any = {

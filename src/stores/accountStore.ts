@@ -24,7 +24,7 @@ interface AccountState {
     platform_username: string;
     expires_at: string;
   }) => Promise<void>;
-  startConnection: (platform: Platform) => Promise<void>;
+  startConnection: (platform: Platform, opts?: { force?: boolean }) => Promise<void>;
   completeCallback: (platform: string, params: Record<string, string>) => Promise<void>;
   disconnectAccount: (id: number) => Promise<void>;
 }
@@ -64,7 +64,7 @@ export const useAccountStore = create<AccountState>((set, get) => ({
       throw errorMessage;
     }
   },
-  startConnection: async (platform: Platform) => {
+  startConnection: async (platform: Platform, opts?: { force?: boolean }) => {
     const key = `start-${platform}`;
     if (inFlightPromises.has(key)) return inFlightPromises.get(key);
 
@@ -72,8 +72,11 @@ export const useAccountStore = create<AccountState>((set, get) => ({
       set({ isConnecting: platform });
       try {
         const callbackUrl = `${import.meta.env.VITE_CALLBACK_BASE_URL || window.location.origin}/dashboard/accounts/callback/${platform}`;
+        const params: Record<string, any> = { redirect_uri: callbackUrl, next: callbackUrl };
+        if (opts?.force) params.force = 'true';
+
         const response = await axiosInstance.get(`/social-connect/${platform}/start/`, {
-          params: { redirect_uri: callbackUrl, next: callbackUrl }
+          params
         });
         const responseData = response.data;
 

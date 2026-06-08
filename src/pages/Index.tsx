@@ -29,9 +29,16 @@ import {
   Heart,
   MessageCircle,
   Plus,
+  Check,
+  Crown,
+  Shield,
+  Loader2,
+  Infinity as InfinityIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/stores/authStore";
+import { useBillingStore, type Plan } from "@/stores/billingStore";
+import { cn } from "@/lib/utils";
 
 const platforms = [
   { name: "Instagram", icon: Instagram, color: "from-pink-500 to-orange-400" },

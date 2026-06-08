@@ -21,6 +21,8 @@ import {
   Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import axiosInstance from '@/lib/axiosInstance';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 const formatCurrency = (amount: number, currency: string = 'INR') => {
   try {
@@ -151,6 +153,8 @@ const Billing = () => {
 
   const [processingPlanId, setProcessingPlanId] = useState<number | string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [pendingSwitchPlan, setPendingSwitchPlan] = useState<ReturnType<typeof normalizePlan> | null>(null);
+  const [isSwitching, setIsSwitching] = useState(false);
 
   useEffect(() => {
     fetchAll();
@@ -193,7 +197,7 @@ const Billing = () => {
     subscription?.plan?.name ||
     subscription?.plan_name ||
     usage?.plan_name ||
-    'Current plan';
+    (isActive && !isCancelled ? 'Current plan' : 'Choose again');
   const daysLeft = typeof usage?.days_left === 'number' ? usage.days_left : null;
   const dailyUsed = Number(usage?.daily_used ?? 0);
   const dailyLimit = Number(usage?.daily_limit ?? 0);
@@ -252,8 +256,22 @@ const Billing = () => {
           email: user?.email,
         },
         theme: { color: '#2563eb' },
-        handler: async () => {
+        handler: async (response: any) => {
           toast.success('Payment received — activating your plan…');
+          try {
+            // Verify the subscription/payment with the backend so it can process webhooks
+            await axiosInstance.post('/subscribe/verify/', {
+              subscription_id: subscriptionId,
+              order_id: orderId,
+              razorpay_payment_id: response?.razorpay_payment_id,
+              razorpay_subscription_id: response?.razorpay_subscription_id,
+              razorpay_order_id: response?.razorpay_order_id,
+              razorpay_signature: response?.razorpay_signature,
+            });
+          } catch (err) {
+            // Ignore verification errors here — we'll still attempt to refresh state
+            console.error('Verification error:', err);
+          }
           // Give backend a moment to process the webhook, then refresh
           setTimeout(() => {
             fetchSubscription().catch(() => {});
@@ -280,6 +298,22 @@ const Billing = () => {
       setConfirmCancel(false);
     } catch (error: any) {
       toast.error(error.toString?.() ?? 'Could not cancel');
+    }
+  };
+
+  const confirmSwitch = async () => {
+    if (!pendingSwitchPlan) return;
+    setIsSwitching(true);
+    try {
+      // Cancel current subscription first
+      await cancelSubscription();
+      // Then subscribe to the new plan (this will open payment flow when required)
+      await handleSubscribe(pendingSwitchPlan);
+    } catch (error: any) {
+      toast.error(error.toString?.() ?? 'Could not switch plans');
+    } finally {
+      setIsSwitching(false);
+      setPendingSwitchPlan(null);
     }
   };
 
@@ -706,31 +740,40 @@ const Billing = () => {
                           <Check className="w-4 h-4" />
                           Your current plan
                         </Button>
-                      ) : (
-                        <Button
-                          onClick={() => handleSubscribe(plan)}
-                          disabled={isProcessing}
-                          className={cn(
-                            'w-full h-10 rounded-full shadow-md transition-all',
-                            highlight
-                              ? 'bg-gradient-to-r from-blue-600 to-blue-400 hover:opacity-95 text-white shadow-blue-500/30'
-                              : 'bg-slate-900 hover:bg-slate-800 text-white'
-                          )}
-                        >
-                          {isProcessing ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              Processing…
-                            </>
-                          ) : plan.isFree ? (
-                            'Start for free'
-                          ) : isActive ? (
-                            'Switch to this'
-                          ) : (
-                            'Choose plan'
-                          )}
-                        </Button>
-                      )}
+                        ) : (
+                          <>
+                            <Button
+                              onClick={() => {
+                                // If there's an active subscription, prompt to cancel first
+                                if (isActive && !isCancelled) {
+                                  setPendingSwitchPlan(plan);
+                                  return;
+                                }
+                                handleSubscribe(plan);
+                              }}
+                              disabled={isProcessing}
+                              className={cn(
+                                'w-full h-10 rounded-full shadow-md transition-all',
+                                highlight
+                                  ? 'bg-gradient-to-r from-blue-600 to-blue-400 hover:opacity-95 text-white shadow-blue-500/30'
+                                  : 'bg-slate-900 hover:bg-slate-800 text-white'
+                              )}
+                            >
+                              {isProcessing ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  Processing…
+                                </>
+                              ) : plan.isFree ? (
+                                'Start for free'
+                              ) : isActive ? (
+                                'Switch to this'
+                              ) : (
+                                'Choose plan'
+                              )}
+                            </Button>
+                          </>
+                        )}
                     </div>
                   </div>
                 </div>
@@ -739,6 +782,22 @@ const Billing = () => {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!pendingSwitchPlan}
+        onOpenChange={(open) => { if (!open) setPendingSwitchPlan(null); }}
+        title={pendingSwitchPlan ? `Switch to ${pendingSwitchPlan.name}?` : 'Switch plan?'}
+        description={
+          <>
+            Switching plans will cancel your current subscription immediately. Any remaining balance or unused credits will not be carried over or credited to your account. Are you sure you want to continue?
+          </>
+        }
+        confirmLabel="Cancel current & switch"
+        cancelLabel="Keep current"
+        destructive
+        loading={isSwitching}
+        onConfirm={confirmSwitch}
+      />
 
       {/* Reassurance row */}
       <div className="grid sm:grid-cols-3 gap-2.5">

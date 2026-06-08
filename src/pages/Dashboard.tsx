@@ -81,6 +81,18 @@ const Dashboard = () => {
   const creditsPct = creditsTotal > 0 ? Math.round((creditsRemaining / creditsTotal) * 100) : 0;
   const planName = subscription?.plan?.name || subscription?.plan_name || 'Free plan';
 
+  // Determine whether the subscription is currently active. Mirrors logic
+  // used in the billing view so the dashboard label matches the plans UX.
+  const isActive =
+    Boolean(subscription?.is_active) ||
+    subscription?.status === 'active' ||
+    subscription?.status === 'trialing' ||
+    subscription?.status === 'pending';
+  const isCancelled =
+    Boolean(subscription?.cancelled_at) ||
+    subscription?.status === 'cancelled' ||
+    subscription?.status === 'canceled';
+
   const stats = [
     { label: 'Total Posts', value: totalPosts, icon: Calendar, gradient: 'from-blue-600 to-blue-500' },
     { label: 'Published', value: publishedCount, icon: CheckCircle2, gradient: 'from-emerald-500 to-teal-500' },
@@ -217,7 +229,7 @@ const Dashboard = () => {
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 flex items-center justify-center shadow-md shrink-0">
                 <Crown className="w-4 h-4 text-white" />
               </div>
-              <p className="text-[11px] font-semibold tracking-widest uppercase text-amber-700">Current plan</p>
+              <p className="text-[11px] font-semibold tracking-widest uppercase text-amber-700">{isActive && !isCancelled ? 'Current plan' : 'Choose again'}</p>
             </div>
             <p className="mt-2 text-xl font-bold tracking-tight text-slate-900 truncate">{planName}</p>
             <p className="text-sm text-slate-500 flex items-center gap-1">

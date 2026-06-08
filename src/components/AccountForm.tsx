@@ -22,10 +22,11 @@ const PLATFORMS: { id: Platform; label: string; icon: React.ElementType; color: 
 interface AccountFormProps {
   onSuccess?: () => void;
   onCancel?: () => void;
+  initialPlatform?: Platform | null;
 }
 
-const AccountForm = ({ onSuccess, onCancel }: AccountFormProps) => {
-  const [platform, setPlatform] = useState<Platform | null>(null);
+const AccountForm = ({ onSuccess, onCancel, initialPlatform = null }: AccountFormProps) => {
+  const [platform, setPlatform] = useState<Platform | null>(initialPlatform);
   const [accessToken, setAccessToken] = useState('');
   const [refreshToken, setRefreshToken] = useState('');
   const [accountId, setAccountId] = useState('');
