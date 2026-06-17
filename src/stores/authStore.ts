@@ -35,7 +35,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
         try {
           const isEmail = identifier.includes('@');
-          const payload = isEmail ? { email: identifier, password } : { username: identifier, password };
+          const payload = isEmail ? { identifier, password } : { username: identifier, password };
           const { data } = await axiosInstance.post('/login/', payload);
           const user = data.user || { id: data.id, email: data.email, name: data.name || identifier };
           const token = data.token || data.access;
@@ -44,7 +44,7 @@ export const useAuthStore = create<AuthState>()(
         } catch (error: any) {
           console.error("Login error:", error.response?.data);
           let errorMessage = 'Invalid credentials';
-          
+
           if (error.response?.data) {
             const data = error.response.data;
             if (typeof data === 'string') {
@@ -63,7 +63,7 @@ export const useAuthStore = create<AuthState>()(
                 .join(' ') || 'Invalid credentials';
             }
           }
-          
+
           set({ isLoading: false, error: errorMessage });
           throw errorMessage;
         }
@@ -76,7 +76,7 @@ export const useAuthStore = create<AuthState>()(
         } catch (error: any) {
           console.error("Register error:", error.response?.data);
           let errorMessage = 'Registration failed';
-          
+
           if (error.response?.data) {
             const data = error.response.data;
             if (typeof data === 'string') {
@@ -94,7 +94,7 @@ export const useAuthStore = create<AuthState>()(
                 .join(' ') || 'Registration failed';
             }
           }
-          
+
           set({ isLoading: false, error: errorMessage });
           throw errorMessage;
         }
@@ -112,7 +112,7 @@ export const useAuthStore = create<AuthState>()(
       setLoading: (loading: boolean) => set({ isLoading: loading }),
       clearError: () => set({ error: null }),
     }),
-    { 
+    {
       name: 'socialhub-auth',
       partialize: (state) => ({
         user: state.user,

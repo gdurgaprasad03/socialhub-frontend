@@ -57,14 +57,26 @@ export interface Post {
 // In production prefix with the backend host.
 // const FALLBACK_API_BASE = 'https://pseudopregnant-fatless-ila.ngrok-free.dev/api/api';
 const FALLBACK_API_BASE = 'https://nxsocial.nxsys.in/api';
+// const FALLBACK_API_BASE = 'http://192.168.0.114:8000/api';
+
 
 export const resolveMediaUrl = (url: string | null | undefined): string => {
   if (!url) return '';
-  if (/^https?:\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) return url;
+  if (url.startsWith('data:') || url.startsWith('blob:')) return url;
+  
   if (import.meta.env.DEV) {
-    // Proxy handles /media and /api paths, return relative
+    // If the backend returns an absolute URL (e.g. ngrok or production host), 
+    // extract just the path so it goes through the local Vite proxy to avoid CORS.
+    try {
+      if (/^https?:\/\//i.test(url)) {
+        const urlObj = new URL(url);
+        return urlObj.pathname + urlObj.search;
+      }
+    } catch(e) {}
     return url.startsWith('/') ? url : `/${url}`;
   }
+
+  if (/^https?:\/\//i.test(url)) return url;
   const apiBase = import.meta.env.VITE_API_URL || FALLBACK_API_BASE;
   const host = apiBase.replace(/\/api\/?$/, '');
   return `${host}${url.startsWith('/') ? '' : '/'}${url}`;
@@ -196,13 +208,22 @@ export const usePostStore = create<PostState>((set) => ({
       if (isMultipart) {
         const form = new FormData();
         form.append('content', post.content);
-        form.append('target_accounts', JSON.stringify(post.targetAccounts));
+        post.targetAccounts.forEach((id) => {
+          form.append('target_accounts', id.toString());
+        });
 
         if (hasVideoFile) form.append('video_file', post.videoFile!);
 
-        urlImages.forEach((url) => form.append('media_files', url));
+        urlImages.forEach((url) => {
+          form.append('media_files', url);
+          form.append('images', url);
+          form.append('image', url);
+        });
         if (hasImageFiles) {
-          post.imageFiles!.forEach((file) => form.append('media_files', file));
+          post.imageFiles!.forEach((file) => {
+            form.append('media_files', file);
+            form.append('images', file);
+          });
         }
 
         if (post.platformOptions && Object.keys(post.platformOptions).length > 0) {
@@ -216,21 +237,21 @@ export const usePostStore = create<PostState>((set) => ({
         }
 
         const url = post.editingId ? `/posts/${post.editingId}/` : '/posts/';
+        
+        const axiosConfig = {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          onUploadProgress: (e: any) => {
+            const pct = Math.round(((e.loaded || 0) * 100) / (e.total || 1));
+            set({ uploadProgress: pct });
+          },
+        };
+
         const response = post.editingId
-          ? await axiosInstance.put(url, form, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-            onUploadProgress: (e) => {
-              const pct = Math.round(((e.loaded || 0) * 100) / (e.total || 1));
-              set({ uploadProgress: pct });
-            },
-          })
-          : await axiosInstance.post(url, form, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-            onUploadProgress: (e) => {
-              const pct = Math.round(((e.loaded || 0) * 100) / (e.total || 1));
-              set({ uploadProgress: pct });
-            },
-          });
+          ? await axiosInstance.put(url, form, axiosConfig)
+          : await axiosInstance.post(url, form, axiosConfig);
+        
         responseData = response.data;
       } else {
         const payload: any = {
