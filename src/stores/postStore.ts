@@ -63,7 +63,7 @@ const FALLBACK_API_BASE = 'https://nxsocial.nxsys.in/api';
 export const resolveMediaUrl = (url: string | null | undefined): string => {
   if (!url) return '';
   if (url.startsWith('data:') || url.startsWith('blob:')) return url;
-  
+
   if (import.meta.env.DEV) {
     // If the backend returns an absolute URL (e.g. ngrok or production host), 
     // extract just the path so it goes through the local Vite proxy to avoid CORS.
@@ -72,7 +72,7 @@ export const resolveMediaUrl = (url: string | null | undefined): string => {
         const urlObj = new URL(url);
         return urlObj.pathname + urlObj.search;
       }
-    } catch(e) {}
+    } catch (e) { }
     return url.startsWith('/') ? url : `/${url}`;
   }
 
@@ -237,7 +237,7 @@ export const usePostStore = create<PostState>((set) => ({
         }
 
         const url = post.editingId ? `/posts/${post.editingId}/` : '/posts/';
-        
+
         const axiosConfig = {
           headers: {
             'Content-Type': 'multipart/form-data',
@@ -251,7 +251,7 @@ export const usePostStore = create<PostState>((set) => ({
         const response = post.editingId
           ? await axiosInstance.put(url, form, axiosConfig)
           : await axiosInstance.post(url, form, axiosConfig);
-        
+
         responseData = response.data;
       } else {
         const payload: any = {
