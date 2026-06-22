@@ -113,6 +113,11 @@ export interface CreatePostInput {
   addToQueue?: boolean;
 }
 
+export interface SchedulingSlotInput {
+  day_of_week: number;
+  time: string; // "HH:MM" or "HH:MM:SS"
+}
+
 interface PostState {
   posts: Post[];
   scheduledPosts: Post[];
@@ -127,6 +132,9 @@ interface PostState {
   deletePost: (id: number) => Promise<void>;
   deleteAccountPost: (id: number, accountId: number) => Promise<void>;
   deleteScheduledPost: (id: number) => Promise<void>;
+  createSchedulingSlot: (data: SchedulingSlotInput) => Promise<void>;
+  updateSchedulingSlot: (id: number, data: SchedulingSlotInput) => Promise<void>;
+  deleteSchedulingSlot: (id: number) => Promise<void>;
   updatePost: (id: number, data: Partial<CreatePostInput>) => Promise<void>;
   fetchDashboard: () => Promise<any>;
 }
@@ -315,8 +323,37 @@ export const usePostStore = create<PostState>((set) => ({
   },
 
   deleteScheduledPost: async (id) => {
-    await axiosInstance.delete(`/scheduling/${id}/`);
+    await axiosInstance.delete(`/posts/${id}/`);
     set((state) => ({ scheduledPosts: state.scheduledPosts.filter((p) => p.id !== id) }));
+  },
+
+  createSchedulingSlot: async (data) => {
+    try {
+      const { data: slot } = await axiosInstance.post('/scheduling/', data);
+      set((state) => ({ schedulingSlots: [...state.schedulingSlots, slot] }));
+    } catch (error: any) {
+      throw extractError(error, 'Failed to create scheduling slot');
+    }
+  },
+
+  updateSchedulingSlot: async (id, data) => {
+    try {
+      const { data: slot } = await axiosInstance.put(`/scheduling/${id}/`, data);
+      set((state) => ({
+        schedulingSlots: state.schedulingSlots.map((s) => (s.id === id ? slot : s)),
+      }));
+    } catch (error: any) {
+      throw extractError(error, 'Failed to update scheduling slot');
+    }
+  },
+
+  deleteSchedulingSlot: async (id) => {
+    try {
+      await axiosInstance.delete(`/scheduling/${id}/`);
+      set((state) => ({ schedulingSlots: state.schedulingSlots.filter((s) => s.id !== id) }));
+    } catch (error: any) {
+      throw extractError(error, 'Failed to delete scheduling slot');
+    }
   },
 
   updatePost: async (id, updateData) => {

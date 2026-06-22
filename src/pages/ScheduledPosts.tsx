@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { usePostStore, resolveMediaUrl, type Post, type PostStatus, type Platform } from '@/stores/postStore';
+import { usePostStore, resolveMediaUrl, type Post, type PostStatus, type Platform, type SchedulingSlot } from '@/stores/postStore';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import {
   Trash2, Clock, CheckCircle2, XCircle, Twitter,
   Linkedin, Facebook, Instagram, Youtube, Calendar, Plus, Loader2, ListOrdered,
   Loader, FileText, Eye, CalendarClock, CalendarDays, List, AlertTriangle, Images, Play, MessageSquare,
+  Settings, Pencil, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import PostForm, { type PostMode } from '@/components/PostForm';
@@ -15,6 +16,12 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 import ViewToggle from '@/components/ViewToggle';
 import { useViewMode } from '@/hooks/useViewMode';
 import AuthImage from '@/components/AuthImage';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 
 const STATUS_CONFIG: Record<PostStatus, { label: string; icon: React.ElementType; className: string }> = {
   scheduled: { label: 'Scheduled', icon: Clock, className: 'text-amber-700 bg-amber-50 border border-amber-200' },
@@ -47,16 +54,30 @@ const formatSlotTime = (time: string): string => {
   return `${display}:${m} ${period}`;
 };
 
+type SlotForm = { day_of_week: string; time: string };
+
 const ScheduledPosts = () => {
   const [view, setView] = useState<'list' | 'create'>('list');
   const [createMode, setCreateMode] = useState<PostMode>('queue');
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+
+  // Slot management state
+  const [slotDialogOpen, setSlotDialogOpen] = useState(false);
+  const [editingSlot, setEditingSlot] = useState<SchedulingSlot | null>(null);
+  const [slotForm, setSlotForm] = useState<SlotForm>({ day_of_week: '0', time: '09:00' });
+  const [slotSaving, setSlotSaving] = useState(false);
+  const [slotDeleteTarget, setSlotDeleteTarget] = useState<SchedulingSlot | null>(null);
+  const [slotDeleting, setSlotDeleting] = useState(false);
+
   const {
     scheduledPosts,
     schedulingSlots,
     deleteScheduledPost,
     fetchScheduledPosts,
     isLoadingScheduled,
+    createSchedulingSlot,
+    updateSchedulingSlot,
+    deleteSchedulingSlot,
   } = usePostStore();
 
   useEffect(() => { fetchScheduledPosts().catch(() => {}); }, [fetchScheduledPosts]);
@@ -87,6 +108,51 @@ const ScheduledPosts = () => {
   const openCreate = (mode: PostMode) => {
     setCreateMode(mode);
     setView('create');
+  };
+
+  const openAddSlot = () => {
+    setEditingSlot(null);
+    setSlotForm({ day_of_week: '0', time: '09:00' });
+    setSlotDialogOpen(true);
+  };
+
+  const openEditSlot = (slot: SchedulingSlot) => {
+    setEditingSlot(slot);
+    setSlotForm({ day_of_week: String(slot.day_of_week), time: slot.time.slice(0, 5) });
+    setSlotDialogOpen(true);
+  };
+
+  const saveSlot = async () => {
+    setSlotSaving(true);
+    try {
+      const payload = { day_of_week: Number(slotForm.day_of_week), time: slotForm.time };
+      if (editingSlot) {
+        await updateSchedulingSlot(editingSlot.id, payload);
+        toast.success('Slot updated');
+      } else {
+        await createSchedulingSlot(payload);
+        toast.success('Slot added');
+      }
+      setSlotDialogOpen(false);
+    } catch (err) {
+      toast.error(String(err ?? 'Failed to save slot'));
+    } finally {
+      setSlotSaving(false);
+    }
+  };
+
+  const confirmDeleteSlot = async () => {
+    if (!slotDeleteTarget) return;
+    setSlotDeleting(true);
+    try {
+      await deleteSchedulingSlot(slotDeleteTarget.id);
+      toast.success('Slot removed');
+      setSlotDeleteTarget(null);
+    } catch (err) {
+      toast.error(String(err ?? 'Failed to delete slot'));
+    } finally {
+      setSlotDeleting(false);
+    }
   };
 
   if (view === 'create') {
@@ -154,39 +220,68 @@ const ScheduledPosts = () => {
       </div>
 
       {/* Weekly posting slots */}
-      {sortedSlots.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm p-4 sm:p-5">
-          <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
-            <div>
-              <p className="text-[11px] font-semibold tracking-widest text-blue-600 uppercase">
-                Weekly slots
-              </p>
-              <p className="text-xs sm:text-sm text-slate-500">
-                Queued posts auto-fill the next open slot.
-              </p>
-            </div>
+      <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+          <div>
+            <p className="text-[11px] font-semibold tracking-widest text-blue-600 uppercase">
+              Weekly slots
+            </p>
+            <p className="text-xs sm:text-sm text-slate-500">
+              Queued posts auto-fill the next open slot.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
             <span className="text-[11px] font-medium text-slate-500 tabular-nums">
               {sortedSlots.length} {sortedSlots.length === 1 ? 'slot' : 'slots'} / week
             </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openAddSlot}
+              className="rounded-full h-7 px-3 text-[11px] border-blue-200 text-blue-600 hover:bg-blue-50"
+            >
+              <Plus className="w-3 h-3" />
+              Add slot
+            </Button>
           </div>
+        </div>
+        {sortedSlots.length === 0 ? (
+          <p className="text-xs text-slate-400 italic">No slots configured. Add one to enable queue scheduling.</p>
+        ) : (
           <div className="flex flex-wrap gap-1.5">
             {sortedSlots.map((slot) => {
               const dayLabel = slot.day_of_week_display || DAY_LABELS[slot.day_of_week] || `Day ${slot.day_of_week}`;
               return (
                 <span
                   key={slot.id}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-blue-50 to-sky-50 border border-blue-100 text-[11px] font-medium text-blue-700"
+                  className="group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-blue-50 to-sky-50 border border-blue-100 text-[11px] font-medium text-blue-700"
                 >
                   <CalendarClock className="w-3 h-3" />
                   {dayLabel}
                   <span className="text-blue-300">·</span>
                   <span className="tabular-nums">{formatSlotTime(slot.time)}</span>
+                  <button
+                    type="button"
+                    onClick={() => openEditSlot(slot)}
+                    className="ml-0.5 opacity-0 group-hover:opacity-100 transition-opacity hover:text-blue-900"
+                    title="Edit slot"
+                  >
+                    <Pencil className="w-2.5 h-2.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSlotDeleteTarget(slot)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-600"
+                    title="Remove slot"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
                 </span>
               );
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {scheduledPosts.length > 0 && !isLoadingScheduled && (
         <div className="flex items-center justify-between gap-2 px-3 py-2 bg-white rounded-xl border border-slate-200/70 shadow-sm">
@@ -355,6 +450,78 @@ const ScheduledPosts = () => {
         destructive
         loading={deleting}
         onConfirm={confirmDelete}
+      />
+
+      {/* Add / Edit slot dialog */}
+      <Dialog open={slotDialogOpen} onOpenChange={(o) => { if (!slotSaving) setSlotDialogOpen(o); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{editingSlot ? 'Edit Slot' : 'Add Scheduling Slot'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-700">Day of week</Label>
+              <Select
+                value={slotForm.day_of_week}
+                onValueChange={(v) => setSlotForm((f) => ({ ...f, day_of_week: v }))}
+              >
+                <SelectTrigger className="h-9 rounded-lg text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DAY_LABELS.map((d, i) => (
+                    <SelectItem key={i} value={String(i)}>{d}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-700">Time</Label>
+              <Input
+                type="time"
+                value={slotForm.time}
+                onChange={(e) => setSlotForm((f) => ({ ...f, time: e.target.value }))}
+                className="h-9 rounded-lg text-sm"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSlotDialogOpen(false)}
+              disabled={slotSaving}
+              className="rounded-full"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={saveSlot}
+              disabled={slotSaving || !slotForm.time}
+              className="rounded-full bg-gradient-to-r from-blue-600 to-blue-500 text-white"
+            >
+              {slotSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              {editingSlot ? 'Save changes' : 'Add slot'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete slot confirm */}
+      <ConfirmDialog
+        open={slotDeleteTarget !== null}
+        onOpenChange={(open) => { if (!open && !slotDeleting) setSlotDeleteTarget(null); }}
+        title="Remove this slot?"
+        description={
+          slotDeleteTarget
+            ? `Remove the ${slotDeleteTarget.day_of_week_display || DAY_LABELS[slotDeleteTarget.day_of_week]} ${formatSlotTime(slotDeleteTarget.time)} slot from your weekly schedule?`
+            : undefined
+        }
+        confirmLabel="Remove slot"
+        destructive
+        loading={slotDeleting}
+        onConfirm={confirmDeleteSlot}
       />
     </div>
   );

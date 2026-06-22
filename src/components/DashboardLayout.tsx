@@ -9,7 +9,6 @@ import {
   CalendarDays,
   Link2,
   LogOut,
-  Share2,
   Menu,
   X,
   FileText,
@@ -144,8 +143,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           <div className="pointer-events-none absolute -bottom-24 -right-16 w-72 h-72 rounded-full bg-gradient-to-br from-blue-400/15 to-blue-500/5 blur-3xl" />
 
           <div className="relative flex items-center gap-3 px-6 h-14 sm:h-16 border-b border-sidebar-border">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center shadow-md shadow-blue-500/30 shrink-0">
-              <Share2 className="w-4 h-4 text-white" />
+            <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0">
+              <img src="/logo.png" alt="SocialHub" className="w-full h-full object-contain" />
             </div>
             <span className="text-lg font-bold text-sidebar-primary-foreground tracking-tight truncate">
               SocialHub
