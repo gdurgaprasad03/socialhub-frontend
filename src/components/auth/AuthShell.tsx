@@ -15,12 +15,12 @@ import { cn } from '@/lib/utils';
 // brand gradient so the page still feels "social" even on the light theme.
 // `hide` breakpoints keep the center uncluttered on small screens.
 const FLOATING_ICONS = [
-  { Icon: Instagram, pos: 'top-[16%] left-[6%]',    delay: 0.00, hide: 'hidden sm:flex', from: 'from-pink-500',    to: 'to-orange-400', ring: 'shadow-pink-500/30' },
-  { Icon: Linkedin,  pos: 'top-[18%] right-[8%]',   delay: 0.30, hide: 'hidden sm:flex', from: 'from-sky-600',     to: 'to-sky-400',    ring: 'shadow-sky-500/30' },
-  { Icon: Twitter,   pos: 'bottom-[22%] left-[10%]', delay: 0.60, hide: 'hidden md:flex', from: 'from-slate-700',   to: 'to-slate-500',  ring: 'shadow-slate-500/25' },
-  { Icon: Facebook,  pos: 'bottom-[26%] right-[12%]', delay: 0.20, hide: 'hidden md:flex', from: 'from-blue-600',    to: 'to-blue-400',   ring: 'shadow-blue-500/30' },
-  { Icon: Youtube,   pos: 'top-[48%] left-[4%]',    delay: 0.80, hide: 'hidden lg:flex', from: 'from-red-600',     to: 'to-red-400',    ring: 'shadow-red-500/30' },
-  { Icon: Instagram, pos: 'top-[56%] right-[5%]',   delay: 0.45, hide: 'hidden lg:flex', from: 'from-fuchsia-500', to: 'to-pink-400',   ring: 'shadow-fuchsia-500/30' },
+  { Icon: Instagram, pos: 'top-[16%] left-[6%]', delay: 0.00, hide: 'hidden sm:flex', from: 'from-pink-500', to: 'to-orange-400', ring: 'shadow-pink-500/30' },
+  { Icon: Linkedin, pos: 'top-[18%] right-[8%]', delay: 0.30, hide: 'hidden sm:flex', from: 'from-sky-600', to: 'to-sky-400', ring: 'shadow-sky-500/30' },
+  { Icon: Twitter, pos: 'bottom-[22%] left-[10%]', delay: 0.60, hide: 'hidden md:flex', from: 'from-slate-700', to: 'to-slate-500', ring: 'shadow-slate-500/25' },
+  { Icon: Facebook, pos: 'bottom-[26%] right-[12%]', delay: 0.20, hide: 'hidden md:flex', from: 'from-blue-600', to: 'to-blue-400', ring: 'shadow-blue-500/30' },
+  { Icon: Youtube, pos: 'top-[48%] left-[4%]', delay: 0.80, hide: 'hidden lg:flex', from: 'from-red-600', to: 'to-red-400', ring: 'shadow-red-500/30' },
+  { Icon: Instagram, pos: 'top-[56%] right-[5%]', delay: 0.45, hide: 'hidden lg:flex', from: 'from-fuchsia-500', to: 'to-pink-400', ring: 'shadow-fuchsia-500/30' },
 ] as const;
 
 /**
@@ -119,7 +119,7 @@ const AuthShell = ({ children, className }: AuthShellProps) => (
     <div className="relative z-10 w-full flex items-center justify-center">{children}</div>
 
     {/* Subtle social proof in the professional footer style */}
-    <div className="absolute bottom-5 sm:bottom-6 inset-x-0 z-10 flex items-center justify-center gap-4 sm:gap-6 text-slate-500 px-4">
+    {/* <div className="absolute bottom-5 sm:bottom-6 inset-x-0 z-10 flex items-center justify-center gap-4 sm:gap-6 text-slate-500 px-4">
       {[
         { value: '10K+', label: 'Creators' },
         { value: '250K+', label: 'Posts' },
@@ -135,7 +135,7 @@ const AuthShell = ({ children, className }: AuthShellProps) => (
           </div>
         </div>
       ))}
-    </div>
+    </div> */}
   </div>
 );
 
