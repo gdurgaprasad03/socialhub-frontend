@@ -68,9 +68,7 @@ const Navbar = () => {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
         <Link to="/" className="flex items-center gap-2 group min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-105 transition-transform shrink-0">
-            <Share2 className="w-5 h-5 text-white" />
-          </div>
+          <img src="/logo.png" alt="Social Media Hub" className="w-9 h-9 object-contain group-hover:scale-105 transition-transform shrink-0" />
           <span className="font-semibold text-slate-900 tracking-tight truncate">
             <span className="hidden sm:inline">Social Media Hub</span>
             <span className="sm:hidden">SocialHub</span>
@@ -1086,9 +1084,7 @@ const Footer = () => (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-14 grid grid-cols-2 md:grid-cols-4 gap-8 sm:gap-10">
       <div className="col-span-2 md:col-span-1">
         <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center shadow-lg shadow-blue-500/30">
-            <Share2 className="w-5 h-5 text-white" />
-          </div>
+          <img src="/logo.png" alt="Social Media Hub" className="w-9 h-9 object-contain" />
           <span className="font-semibold text-slate-900 tracking-tight">Social Media Hub</span>
         </div>
         <p className="mt-4 text-sm text-slate-500 leading-relaxed">
@@ -1123,6 +1119,8 @@ const Footer = () => (
           <li><a href="#features" className="hover:text-slate-900">Features</a></li>
           <li><a href="#how" className="hover:text-slate-900">How it works</a></li>
           <li><a href="#benefits" className="hover:text-slate-900">Benefits</a></li>
+          <li><Link to="/privacy-policy" className="hover:text-slate-900">Privacy Policy</Link></li>
+          <li><Link to="/terms" className="hover:text-slate-900">Terms &amp; Conditions</Link></li>
         </ul>
       </div>
 
@@ -1137,7 +1135,10 @@ const Footer = () => (
     <div className="border-t border-slate-200/60">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-6 flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4 text-center md:text-left">
         <p className="text-xs text-slate-500">© {new Date().getFullYear()} Social Media Hub. All rights reserved.</p>
-        <p className="text-xs text-slate-400">Built for creators & teams.</p>
+        <div className="flex items-center gap-4">
+          <Link to="/privacy-policy" className="text-xs text-slate-400 hover:text-blue-600 transition-colors">Privacy Policy</Link>
+          <Link to="/terms" className="text-xs text-slate-400 hover:text-blue-600 transition-colors">Terms &amp; Conditions</Link>
+        </div>
       </div>
     </div>
   </footer>

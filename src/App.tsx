@@ -17,6 +17,8 @@ import NotFound from "@/pages/NotFound";
 import Index from "@/pages/Index";
 import CalendarPage from "@/pages/CalendarPage";
 import Billing from "@/pages/Billing";
+import PrivacyPolicy from "@/pages/PrivacyPolicy";
+import TermsAndConditions from "@/pages/TermsAndConditions";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +59,8 @@ const App = () => (
           <Route path="/dashboard/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
           <Route path="/social/success" element={<AuthRequired><SocialAuthCallback /></AuthRequired>} />
           <Route path="/social/error" element={<AuthRequired><SocialAuthCallback /></AuthRequired>} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<TermsAndConditions />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

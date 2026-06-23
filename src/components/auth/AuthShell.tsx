@@ -101,9 +101,7 @@ const AuthShell = ({ children, className }: AuthShellProps) => (
       to="/"
       className="absolute top-5 left-5 sm:top-6 sm:left-8 z-10 flex items-center gap-2 group"
     >
-      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center shadow-md shadow-blue-500/30 group-hover:scale-105 transition-transform">
-        <Share2 className="w-4 h-4 text-white" />
-      </div>
+      <img src="/logo.png" alt="Social Media Hub" className="w-9 h-9 object-contain group-hover:scale-105 transition-transform" />
       <span className="text-sm sm:text-base font-semibold text-slate-900 tracking-tight">
         Social Media Hub
       </span>
